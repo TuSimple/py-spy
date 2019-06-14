@@ -207,6 +207,8 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
     })?;
 
     let mut exit_message = "";
+    let mut time_stamp: u64 = 0;
+    let mut sample_counter: u64 = 0;
 
     for sleep in timer::Timer::new(config.sampling_rate as f64) {
         if let Err(delay) = sleep {
@@ -269,6 +271,11 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
         }
 
         progress.inc(1);
+        sample_counter += 1;
+        if sample_counter == config.sampling_rate {
+            sample_counter = 0;
+            time_stamp += 1;
+        }
     }
     progress.finish();
     // write out a message here (so as not to interfere with progress bar) if we ended earlier
@@ -299,8 +306,8 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
     // open generated flame graph in the browser on OSX (theory being that on linux
     // you might be SSH'ed into a server somewhere and this isn't desired, but on
     // that is pretty unlikely for osx) (note to self: xdg-open will open on linux)
-    #[cfg(target_os = "macos")]
-    std::process::Command::new("open").arg(filename).spawn()?;
+    // #[cfg(target_os = "macos")]
+    // std::process::Command::new("open").arg(filename).spawn()?;
 
     Ok(())
 }
