@@ -1,4 +1,3 @@
-use std;
 use std::collections::HashMap;
 use std::mem::size_of;
 use std::slice;

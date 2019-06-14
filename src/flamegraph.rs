@@ -26,8 +26,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-use std;
 use std::collections::HashMap;
+use std::collections::BTreeMap;
+use std::ops::Bound::Included;
+use std::ops::Bound::Excluded;
 use std::fs::File;
 
 
@@ -37,16 +39,16 @@ use inferno::flamegraph::{Direction, Options};
 use crate::stack_trace::StackTrace;
 
 pub struct Flamegraph {
-    pub counts: HashMap<String, usize>,
+    pub counts: BTreeMap<u64, HashMap<String, usize>>,
     pub show_linenumbers: bool,
 }
 
 impl Flamegraph {
     pub fn new(show_linenumbers: bool) -> Flamegraph {
-        Flamegraph { counts: HashMap::new(), show_linenumbers }
+        Flamegraph { counts: BTreeMap::new(), show_linenumbers }
     }
 
-    pub fn increment(&mut self, traces: &[StackTrace]) -> std::io::Result<()> {
+    pub fn increment(&mut self, time_stamp: u64, traces: &[StackTrace]) -> std::io::Result<()> {
         for trace in traces {
             if !(trace.active) {
                 continue;
@@ -63,13 +65,15 @@ impl Flamegraph {
             }).collect::<Vec<String>>().join(";");
 
             // update counts for that frame
-            *self.counts.entry(frame).or_insert(0) += 1;
+           let mut content = self.counts.entry(time_stamp).or_insert(HashMap::new());
+           *content.entry(frame).or_insert(0) += 1;
         }
         Ok(())
     }
 
-    pub fn write(&self, w: File) -> Result<(), Error> {
-        let lines: Vec<String> = self.counts.iter().map(|(k, v)| format!("{} {}", k, v)).collect();
+    pub fn write(&self, w: File, start_ts: u64, end_ts: u64) -> Result<(), Error> {
+        let records = self.filter_records(start_ts, end_ts);
+        let lines: Vec<String> = records.iter().map(|(k, v)| format!("{} {}", k, v)).collect();
         let mut opts =  Options {
             direction: Direction::Inverted,
             min_width: 1.0,
@@ -79,5 +83,16 @@ impl Flamegraph {
 
         inferno::flamegraph::from_lines(&mut opts, lines.iter().map(|x| x.as_str()), w).unwrap();
         Ok(())
+    }
+
+    fn filter_records(&self, start_ts: u64, end_ts: u64) -> HashMap<String, usize> {
+        let mut ret = HashMap::new();
+        for (_, ref value) in self.counts.range((Included(&start_ts), Excluded(&end_ts))) {
+            for (frame, count) in value.iter() {
+                let frame_copy: String = frame.clone();
+                *ret.entry(frame_copy).or_insert(0) += count;
+            }
+        }
+        ret
     }
 }

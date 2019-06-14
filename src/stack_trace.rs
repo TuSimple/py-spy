@@ -1,5 +1,3 @@
-use std;
-
 use failure::{Error, ResultExt};
 use remoteprocess::ProcessMemory;
 
