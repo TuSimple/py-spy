@@ -36,10 +36,12 @@ use std::fs::File;
 use failure::Error;
 use inferno::flamegraph::{Direction, Options};
 
-use crate::stack_trace::StackTrace;
+use stack_trace::StackTrace;
+use serde::{Deserialize, Serialize};
 
 type Records = HashMap<String, BTreeMap<u64, usize>>;
 
+#[derive(Serialize, Deserialize)]
 pub struct Flamegraph {
     pub counts: Records,
     pub show_linenumbers: bool,

@@ -18,6 +18,7 @@ extern crate lru;
 extern crate memmap;
 extern crate proc_maps;
 extern crate regex;
+extern crate serde;
 extern crate tempfile;
 #[cfg(unix)]
 extern crate termios;
@@ -50,6 +51,8 @@ mod utils;
 mod version;
 
 use std::io::Read;
+use std::io::Write;
+use std::fs::File;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -308,7 +311,20 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
     // that is pretty unlikely for osx) (note to self: xdg-open will open on linux)
     // #[cfg(target_os = "macos")]
     // std::process::Command::new("open").arg(filename).spawn()?;
+    Ok(())
+}
 
+fn generate_flame_graph(filename: &String, start_ts: u64, end_ts: u64) -> Result<(), Error> {
+    let mut input_file = File::open(&filename)?;
+    let mut content_string = String::new();
+    input_file.read_to_string(&mut content_string)?;
+    let content: flamegraph::Flamegraph = serde_json::from_str(&content_string).unwrap();
+    let mut flame_name = String::new();
+    flame_name.push_str(filename);
+    flame_name.push_str(".svg");
+    println!("Generate flame graph to the file '{}' from '{}'. Starting at {}, Ending at {}", flame_name, filename, start_ts, end_ts);
+    let target = File::create(flame_name)?;
+    content.write_file(target, start_ts, end_ts)?;
     Ok(())
 }
 

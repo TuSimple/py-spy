@@ -29,6 +29,8 @@ pub struct Config {
     #[doc(hidden)]
     pub format: Option<FileFormat>,
     #[doc(hidden)]
+    pub data_file_name: Option<String>,
+    #[doc(hidden)]
     pub show_line_numbers: bool,
     #[doc(hidden)]
     pub duration: RecordDuration,
@@ -161,6 +163,20 @@ impl Config {
                     .help("Include stack traces for idle threads"))
                 .arg(native.clone())
                 .arg(nonblocking.clone())
+                .arg(Arg::with_name("start_timestamp")
+                    .short("s")
+                    .long("startts")
+                    .value_name("start_timestamp")
+                    .help("The value of starting timestamp for generating flame graph")
+                    .default_value("0")
+                    .takes_value(true))
+                .arg(Arg::with_name("end_timestamp")
+                    .short("e")
+                    .long("endts")
+                    .value_name("end_timestamp")
+                    .help("The value of ending timestamp for generating flame graph")
+                    .default_value("2")
+                    .takes_value(true))
             )
             .subcommand(clap::SubCommand::with_name("top")
                 .about("Displays a top like view of functions consuming CPU")
