@@ -36,10 +36,14 @@ use std::fs::File;
 use failure::Error;
 use inferno::flamegraph::{Direction, Options};
 
-use crate::stack_trace::StackTrace;
+use stack_trace::StackTrace;
+use serde::{Deserialize, Serialize};
 
+type Records = BTreeMap<u64, HashMap<String, usize>>;
+
+#[derive(Serialize, Deserialize)]
 pub struct Flamegraph {
-    pub counts: BTreeMap<u64, HashMap<String, usize>>,
+    pub counts: Records,
     pub show_linenumbers: bool,
 }
 
@@ -71,7 +75,7 @@ impl Flamegraph {
         Ok(())
     }
 
-    pub fn write(&self, w: File, start_ts: u64, end_ts: u64) -> Result<(), Error> {
+    pub fn write_file(&self, w: File, start_ts: u64, end_ts: u64) -> Result<(), Error> {
         let records = self.filter_records(start_ts, end_ts);
         let lines: Vec<String> = records.iter().map(|(k, v)| format!("{} {}", k, v)).collect();
         let mut opts =  Options {

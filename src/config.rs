@@ -9,12 +9,16 @@ pub struct Config {
 
     pub dump: bool,
     pub flame_file_name: Option<String>,
+    pub data_file_name: Option<String>,
 
     pub non_blocking: bool,
     pub show_line_numbers: bool,
     pub sampling_rate: u64,
     pub duration: u64,
-    pub native: bool
+    pub native: bool,
+
+    pub start_ts: u64,
+    pub end_ts: u64,
 }
 
 impl Config {
@@ -68,6 +72,26 @@ impl Config {
                 .help("The number of seconds to sample for when generating a flame graph")
                 .default_value("2")
                 .takes_value(true))
+            .arg(Arg::with_name("output")
+                .short("o")
+                .long("output")
+                .value_name("outputfile")
+                .help("Output raw data from sampling to a file")
+                .takes_value(true))
+            .arg(Arg::with_name("start_timestamp")
+                .short("s")
+                .long("startts")
+                .value_name("start_timestamp")
+                .help("The value of starting timestamp for generating flame graph")
+                .default_value("0")
+                .takes_value(true))
+            .arg(Arg::with_name("end_timestamp")
+                .short("e")
+                .long("endts")
+                .value_name("end_timestamp")
+                .help("The value of ending timestamp for generating flame graph")
+                .default_value("2")
+                .takes_value(true))
             .arg(Arg::with_name("python_program")
                 .help("commandline of a python program to run")
                 .multiple(true)
@@ -82,8 +106,11 @@ impl Config {
         });
 
         // what to generate
-        let flame_file_name = matches.value_of("flame").map(|f| f.to_owned());
+        let data_file_name = matches.value_of("output").map(|f| f.to_owned());
         let dump = matches.occurrences_of("dump") > 0;
+        let flame_file_name = matches.value_of("flame").map(|f| f.to_owned());
+        let start_ts = value_t!(matches, "start_timestamp", u64)?;
+        let end_ts = value_t!(matches, "end_timestamp", u64)?;
 
         // how to sample
         let sampling_rate = value_t!(matches, "rate", u64)?;
@@ -97,8 +124,9 @@ impl Config {
             native = false;
         }
 
-        Ok(Config{pid, python_program, dump, flame_file_name,
+        Ok(Config{pid, python_program, dump, flame_file_name, data_file_name,
                   sampling_rate, duration,
-                  show_line_numbers, non_blocking, native})
+                  show_line_numbers, non_blocking, native,
+                  start_ts, end_ts})
     }
 }

@@ -20,6 +20,7 @@ extern crate log;
 extern crate memmap;
 extern crate proc_maps;
 extern crate regex;
+extern crate serde;
 extern crate tempdir;
 extern crate tempfile;
 #[cfg(unix)]
@@ -46,6 +47,8 @@ mod utils;
 mod version;
 
 use std::io::Read;
+use std::io::Write;
+use std::fs::File;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -198,16 +201,30 @@ fn sample_flame(process: &mut PythonSpy, filename: &str, config: &config::Config
         println!("{}", exit_message);
     }
 
-    let out_file = std::fs::File::create(filename)?;
-    flame.write(out_file, 0, time_stamp)?;
-    println!("Wrote raw data of flame graph to the file '{}'. Samples: {} Errors: {}", filename, samples, errors);
+    let mut out_file = File::create(filename)?;
+    let ret = serde_json::to_string(&flame).unwrap();
+    println!("Write raw data of flame graph to the file '{}'. Samples: {} Errors: {}", filename, samples, errors);
+    out_file.write_all(ret.as_bytes()).expect("Fail to write raw data.");
 
     // open generated flame graph in the browser on OSX (theory being that on linux
     // you might be SSH'ed into a server somewhere and this isn't desired, but on
     // that is pretty unlikely for osx) (note to self: xdg-open will open on linux)
     // #[cfg(target_os = "macos")]
     // std::process::Command::new("open").arg(filename).spawn()?;
+    Ok(())
+}
 
+fn generate_flame_graph(filename: &String, start_ts: u64, end_ts: u64) -> Result<(), Error> {
+    let mut input_file = File::open(&filename)?;
+    let mut content_string = String::new();
+    input_file.read_to_string(&mut content_string)?;
+    let content: flamegraph::Flamegraph = serde_json::from_str(&content_string).unwrap();
+    let mut flame_name = String::new();
+    flame_name.push_str(filename);
+    flame_name.push_str(".svg");
+    println!("Generate flame graph to the file '{}' from '{}'. Starting at {}, Ending at {}", flame_name, filename, start_ts, end_ts);
+    let target = File::create(flame_name)?;
+    content.write_file(target, start_ts, end_ts)?;
     Ok(())
 }
 
@@ -228,8 +245,11 @@ fn pyspy_main() -> Result<(), Error> {
         if config.dump {
             println!("{}\nPython version {}", process.process.exe()?, process.version);
             print_traces(&process.get_stack_traces()?, true);
-        } else if let Some(ref flame_file) = config.flame_file_name {
-            sample_flame(&mut process, &flame_file, &config)?;
+        } else if let Some(ref data_file) = config.data_file_name {
+            sample_flame(&mut process, &data_file, &config)?;
+            if let Some(ref flame_file) = config.flame_file_name {
+                generate_flame_graph(&flame_file, config.start_ts, config.end_ts)?;
+            } 
         } else {
             sample_console(&mut process, &format!("pid: {}", pid), &config)?;
         }
