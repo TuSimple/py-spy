@@ -28,9 +28,15 @@ pub struct Config {
     #[doc(hidden)]
     pub flame_file_name: Option<String>,
     #[doc(hidden)]
+    pub data_file_name: Option<String>,
+    #[doc(hidden)]
     pub show_line_numbers: bool,
     #[doc(hidden)]
     pub duration: u64,
+    #[doc(hidden)]
+    pub start_ts: u64,
+    #[doc(hidden)]
+    pub end_ts: u64,
 }
 
 impl Default for Config {
@@ -38,8 +44,8 @@ impl Default for Config {
     #[allow(dead_code)]
     fn default() -> Config {
         Config{pid: None, python_program: None, dump: false, flame_file_name: None,
-               non_blocking: false, show_line_numbers: false, sampling_rate: 100,
-               duration: 2, native: false}
+               data_file_name: None, non_blocking: false, show_line_numbers: false,
+               sampling_rate: 100, duration: 2, native: false, start_ts: 0, end_ts: 2}
     }
 }
 
@@ -95,6 +101,26 @@ impl Config {
                 .help("The number of seconds to sample for when generating a flame graph")
                 .default_value("2")
                 .takes_value(true))
+            .arg(Arg::with_name("output")
+                .short("o")
+                .long("output")
+                .value_name("outputfile")
+                .help("Output raw data from sampling to a file")
+                .takes_value(true))
+            .arg(Arg::with_name("start_timestamp")
+                .short("s")
+                .long("startts")
+                .value_name("start_timestamp")
+                .help("The value of starting timestamp for generating flame graph")
+                .default_value("0")
+                .takes_value(true))
+            .arg(Arg::with_name("end_timestamp")
+                .short("e")
+                .long("endts")
+                .value_name("end_timestamp")
+                .help("The value of ending timestamp for generating flame graph")
+                .default_value("2")
+                .takes_value(true))
             .arg(Arg::with_name("python_program")
                 .help("commandline of a python program to run")
                 .multiple(true)
@@ -109,8 +135,11 @@ impl Config {
         });
 
         // what to generate
-        let flame_file_name = matches.value_of("flame").map(|f| f.to_owned());
+        let data_file_name = matches.value_of("output").map(|f| f.to_owned());
         let dump = matches.occurrences_of("dump") > 0;
+        let flame_file_name = matches.value_of("flame").map(|f| f.to_owned());
+        let start_ts = value_t!(matches, "start_timestamp", u64)?;
+        let end_ts = value_t!(matches, "end_timestamp", u64)?;
 
         // how to sample
         let sampling_rate = value_t!(matches, "rate", u64)?;
@@ -129,8 +158,9 @@ impl Config {
             native = false;
         }
 
-        Ok(Config{pid, python_program, dump, flame_file_name,
+        Ok(Config{pid, python_program, dump, flame_file_name, data_file_name,
                   sampling_rate, duration,
-                  show_line_numbers, non_blocking, native})
+                  show_line_numbers, non_blocking, native,
+                  start_ts, end_ts})
     }
 }
