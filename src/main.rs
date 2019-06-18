@@ -201,16 +201,19 @@ fn sample_flame(process: &mut PythonSpy, filename: &str, config: &config::Config
         println!("{}", exit_message);
     }
 
-    let mut out_file = File::create(filename)?;
-    let ret = serde_json::to_string(&flame).unwrap();
     println!("Write raw data of flame graph to the file '{}'. Samples: {} Errors: {}", filename, samples, errors);
-    out_file.write_all(ret.as_bytes()).expect("Fail to write raw data.");
-
+    output_raw_data(&filename, &flame)
     // open generated flame graph in the browser on OSX (theory being that on linux
     // you might be SSH'ed into a server somewhere and this isn't desired, but on
     // that is pretty unlikely for osx) (note to self: xdg-open will open on linux)
     // #[cfg(target_os = "macos")]
     // std::process::Command::new("open").arg(filename).spawn()?;
+}
+
+fn output_raw_data(filename: &str, flame: &flamegraph::Flamegraph) -> Result<(), Error> {
+    let mut out_file = File::create(filename)?;
+    let ret = serde_json::to_string(&flame).unwrap();
+    out_file.write_all(ret.as_bytes()).expect("Fail to write raw data");
     Ok(())
 }
 
@@ -219,6 +222,7 @@ fn generate_flame_graph(filename: &String, start_ts: u64, end_ts: u64) -> Result
     let mut content_string = String::new();
     input_file.read_to_string(&mut content_string)?;
     let content: flamegraph::Flamegraph = serde_json::from_str(&content_string).unwrap();
+    println!("The raw data contains {} different stack traces.", content.counts.len());
     let mut flame_name = String::new();
     flame_name.push_str(filename);
     flame_name.push_str(".svg");
