@@ -49,7 +49,7 @@ pub struct Flamegraph {
 
 impl Flamegraph {
     pub fn new(show_linenumbers: bool) -> Flamegraph {
-        Flamegraph { counts: BTreeMap::new(), show_linenumbers }
+        Flamegraph { counts: HashMap::new(), show_linenumbers }
     }
 
     pub fn increment(&mut self, time_stamp: u64, traces: &StackTrace) -> std::io::Result<()> {
@@ -63,7 +63,6 @@ impl Flamegraph {
             }
         }).collect::<Vec<String>>().join(";");
 
-        // update counts for that frame
         // update counts for that frame
         let statistics = self.counts.entry(frame).or_insert(BTreeMap::new());
         *statistics.entry(time_stamp).or_insert(0) += 1;
@@ -101,10 +100,14 @@ impl Flamegraph {
 
     fn filter_records(&self, start_ts: u64, end_ts: u64) -> HashMap<String, usize> {
         let mut ret = HashMap::new();
-        for (_, ref value) in self.counts.range((Included(&start_ts), Excluded(&end_ts))) {
-            for (frame, count) in value.iter() {
-                let frame_copy: String = frame.clone();
-                *ret.entry(frame_copy).or_insert(0) += count;
+        for (stack_str, statistics) in &self.counts {
+            let mut counter: usize = 0;
+            for (_, ref num) in statistics.range((Included(&start_ts), Excluded(&end_ts))) {
+                counter += **num;
+            }
+
+            if counter > 0 {
+                ret.insert(stack_str.clone(), counter);
             }
         }
         ret
