@@ -183,7 +183,7 @@ mod tests {
         let stack_trace_b = String::from(stack_trace_b);
         assert_eq!(test_ret.len(), 1);
         assert!(test_ret.contains_key(&stack_trace_b));
-        assert_eq!(*test_ret.get(&stack_trace_a).unwrap_or(&0), 3);
+        assert_eq!(*test_ret.get(&stack_trace_b).unwrap_or(&0), 3);
 
         let test_ret = test_flame.filter_records(5, 11);
         assert_eq!(test_ret.len(), 2);
