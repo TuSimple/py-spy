@@ -107,6 +107,8 @@ fn sample_console(process: &mut PythonSpy,
                   display: &str,
                   config: &Config) -> Result<(), Error> {
     let rate = config.sampling_rate;
+
+    // Console related
     let mut console = ConsoleViewer::new(config.show_line_numbers, display,
                                          &format!("{}", process.version),
                                          1.0 / rate as f64)?;
@@ -201,8 +203,12 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
 
     let mut errors = 0;
     let mut samples = 0;
-    println!();
+    let mut exit_message = "";
+    let mut time_stamp: u64 = 0;
+    let mut sample_counter: u64 = 0;
+    let mut flame = flamegraph::Flamegraph::new(config.show_line_numbers);
 
+    // Ctrl-C handler
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
     ctrlc::set_handler(move || {
@@ -223,11 +229,13 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
             }
         }
 
+        // Stop sampling when receiving Ctrl-C
         if !running.load(Ordering::SeqCst) {
             exit_message = "Stopped sampling because Control-C pressed";
             break;
         }
 
+        // Process stack traces
         match process.get_stack_traces() {
             Ok(traces) => {
                 for mut trace in traces {
@@ -255,11 +263,13 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
                     }
                 }
             },
-            Err(_) => {
+            Err(err) => {
                 if process_exitted(&process.process) {
+                    println!("\nprocess {} ended", process.pid);
                     exit_message = "Stopped sampling because the process ended";
                     break;
                 } else {
+                    console.increment_error(time_stamp, &err)?;
                     errors += 1;
                 }
             }
@@ -280,7 +290,7 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
             time_stamp += 1;
         }
     }
-    progress.finish();
+
     // write out a message here (so as not to interfere with progress bar) if we ended earlier
     if !exit_message.is_empty() {
         println!("{}", exit_message);
@@ -320,6 +330,7 @@ fn output_raw_data(filename: &str, flame: &flamegraph::Flamegraph) -> Result<(),
 }
 
 fn generate_flame_graph(filename: &String, start_ts: u64, end_ts: u64) -> Result<(), Error> {
+    println!("Try to open the file {}", filename);
     let mut input_file = File::open(&filename)?;
     let mut content_string = String::new();
     input_file.read_to_string(&mut content_string)?;

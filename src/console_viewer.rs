@@ -62,7 +62,7 @@ impl ConsoleViewer {
                          stats: Stats::new()})
     }
 
-    pub fn increment(&mut self, traces: &[StackTrace]) -> Result<(), Error> {
+    pub fn increment(&mut self, time_stamp: u64, traces: &[StackTrace]) -> Result<(), Error> {
         self.maybe_reset();
         self.stats.threads = 0;
         for trace in traces {
@@ -94,11 +94,11 @@ impl ConsoleViewer {
                 format!("{} ({})", frame.name, filename)
             });
         }
-        self.increment_common()?;
+        self.increment_common(time_stamp)?;
         Ok(())
     }
 
-    pub fn display(&self) -> std::io::Result<()> {
+    pub fn display(&self, time_stamp: u64) -> std::io::Result<()> {
         // Get the top aggregate function calls (either by line or by function as )
         let mut options = self.options.lock().unwrap();
         options.dirty = false;
@@ -147,7 +147,7 @@ impl ConsoleViewer {
                  style(error_rate * 100.0).bold().red(),
                  style(error_string).bold());
         } else {
-             out!("Total Samples {}", style(self.stats.overall_samples).bold());
+             out!("Time elapsed: {} seconds\t Total Samples: {}", style(time_stamp + 1).bold(), style(self.stats.overall_samples).bold());
         }
 
         out!("GIL: {:.2}%, Active: {:>.2}%, Threads: {}",
@@ -222,11 +222,11 @@ impl ConsoleViewer {
         Ok(())
     }
 
-    pub fn increment_error(&mut self, err: &Error) ->  Result<(), Error> {
+    pub fn increment_error(&mut self, time_stamp: u64, err: &Error) ->  Result<(), Error> {
         self.maybe_reset();
         self.stats.errors += 1;
         self.stats.last_error = Some(format!("{}", err));
-        self.increment_common()
+        self.increment_common(time_stamp)
     }
 
     pub fn increment_late_sample(&mut self, delay: std::time::Duration) {
@@ -244,13 +244,13 @@ impl ConsoleViewer {
     }
 
     // shared code between increment and increment_error
-    fn increment_common(&mut self) -> Result<(), Error> {
+    fn increment_common(&mut self, time_stamp: u64) -> Result<(), Error> {
         self.stats.current_samples += 1;
         self.stats.overall_samples += 1;
         self.stats.elapsed += self.sampling_rate;
 
         if self.should_refresh() {
-            self.display()?;
+            self.display(time_stamp)?;
             self.stats.reset_current();
         }
         Ok(())
