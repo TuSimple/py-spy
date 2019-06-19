@@ -96,104 +96,68 @@ fn permission_denied(err: &Error) -> bool {
     })
 }
 
-fn sample_console(process: &mut PythonSpy,
-                  display: &str,
-                  config: &config::Config) -> Result<(), Error> {
+fn sample_work(process: &mut PythonSpy, config: &config::Config,
+               display: &str, filename: &str) -> Result<(), Error> {
     let rate = config.sampling_rate;
+
+    // Console related
     let mut console = ConsoleViewer::new(config.show_line_numbers, display,
                                          &format!("{}", process.version),
                                          1.0 / rate as f64)?;
-
-    for sleep in timer::Timer::new(rate as f64) {
-        if let Err(elapsed) = sleep {
-            console.increment_late_sample(elapsed);
-        }
-
-        match process.get_stack_traces() {
-            Ok(traces) => {
-                console.increment(&traces)?;
-            },
-            Err(err) => {
-                if process_exitted(&process.process) {
-                    println!("\nprocess {} ended", process.pid);
-                    break;
-                } else {
-                    console.increment_error(&err)?;
-                }
-            }
-        }
-
-    }
-    Ok(())
-}
-
-
-fn sample_flame(process: &mut PythonSpy, filename: &str, config: &config::Config) -> Result<(), Error> {
-    let max_samples = config.duration * config.sampling_rate;
-
-    let mut flame = flamegraph::Flamegraph::new(config.show_line_numbers);
-    use indicatif::ProgressBar;
-    let progress = ProgressBar::new(max_samples);
-
-    println!("Sampling process {} times a second for {} seconds. Press Control-C to exit.",
-             config.sampling_rate, config.duration);
-
+    
+    // Flame graph related
     let mut errors = 0;
     let mut samples = 0;
-    println!();
+    let mut exit_message = "";
+    let mut time_stamp: u64 = 0;
+    let mut sample_counter: u64 = 0;
+    let mut flame = flamegraph::Flamegraph::new(config.show_line_numbers);
 
+    // Ctrl-C handler
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
     ctrlc::set_handler(move || {
         r.store(false, Ordering::SeqCst);
     })?;
 
-    let mut exit_message = "";
-    let mut time_stamp: u64 = 0;
-    let mut sample_counter: u64 = 0;
-
-    for sleep in timer::Timer::new(config.sampling_rate as f64) {
-        if let Err(delay) = sleep {
-            if delay > Duration::from_secs(1) {
-                // TODO: once this available on crates.io https://github.com/mitsuhiko/indicatif/pull/41
-                // go progress.println instead
-                let term = console::Term::stdout();
-                term.move_cursor_up(2)?;
-                println!("{:.2?} behind in sampling, results may be inaccurate. Try reducing the sampling rate.", delay);
-                term.move_cursor_down(1)?;
-            }
+    // Sampling
+    for sleep in timer::Timer::new(rate as f64) {
+        if let Err(elapsed) = sleep {
+            console.increment_late_sample(elapsed);
         }
 
+        // Stop sampling when receiving Ctrl-C
         if !running.load(Ordering::SeqCst) {
             exit_message = "Stopped sampling because Control-C pressed";
             break;
         }
 
+        // Process stack traces
         match process.get_stack_traces() {
             Ok(traces) => {
+                console.increment(time_stamp, &traces)?;
                 flame.increment(time_stamp, &traces)?;
                 samples += 1;
-                if samples >= max_samples {
-                    break;
-                }
             },
-            Err(_) => {
+            Err(err) => {
                 if process_exitted(&process.process) {
+                    println!("\nprocess {} ended", process.pid);
                     exit_message = "Stopped sampling because the process ended";
                     break;
                 } else {
+                    console.increment_error(time_stamp, &err)?;
                     errors += 1;
                 }
             }
         }
-        progress.inc(1);
+
         sample_counter += 1;
         if sample_counter == config.sampling_rate {
             sample_counter = 0;
             time_stamp += 1;
         }
     }
-    progress.finish();
+
     // write out a message here (so as not to interfere with progress bar) if we ended earlier
     if !exit_message.is_empty() {
         println!("{}", exit_message);
@@ -201,6 +165,7 @@ fn sample_flame(process: &mut PythonSpy, filename: &str, config: &config::Config
 
     println!("Write raw data of flame graph to the file '{}'. Samples: {} Errors: {}", filename, samples, errors);
     output_raw_data(&filename, &flame)
+
     // open generated flame graph in the browser on OSX (theory being that on linux
     // you might be SSH'ed into a server somewhere and this isn't desired, but on
     // that is pretty unlikely for osx) (note to self: xdg-open will open on linux)
@@ -216,6 +181,7 @@ fn output_raw_data(filename: &str, flame: &flamegraph::Flamegraph) -> Result<(),
 }
 
 fn generate_flame_graph(filename: &String, start_ts: u64, end_ts: u64) -> Result<(), Error> {
+    println!("Try to open the file {}", filename);
     let mut input_file = File::open(&filename)?;
     let mut content_string = String::new();
     input_file.read_to_string(&mut content_string)?;
@@ -247,13 +213,12 @@ fn pyspy_main() -> Result<(), Error> {
         if config.dump {
             println!("{}\nPython version {}", process.process.exe()?, process.version);
             print_traces(&process.get_stack_traces()?, true);
+        } else if let Some(ref flame_file) = config.flame_file_name {
+            generate_flame_graph(&flame_file, config.start_ts, config.end_ts)?;
         } else if let Some(ref data_file) = config.data_file_name {
-            sample_flame(&mut process, &data_file, &config)?;
-            if let Some(ref flame_file) = config.flame_file_name {
-                generate_flame_graph(&flame_file, config.start_ts, config.end_ts)?;
-            } 
+            sample_work(&mut process, &config, &format!("pid: {}", pid), data_file)?;
         } else {
-            sample_console(&mut process, &format!("pid: {}", pid), &config)?;
+            eprintln!("Error: Neither raw data file name nor flame graph name is provided!");
         }
     }
 
@@ -289,9 +254,12 @@ fn pyspy_main() -> Result<(), Error> {
         let result = match PythonSpy::retry_new(command.id() as remoteprocess::Pid, &config, 8) {
             Ok(mut process) => {
                 if let Some(ref flame_file) = config.flame_file_name {
-                    sample_flame(&mut process, &flame_file, &config)
+                    generate_flame_graph(&flame_file, config.start_ts, config.end_ts)
+                } else if let Some(ref data_file) = config.data_file_name {
+                    sample_work(&mut process, &config, &subprocess.join(" "), data_file)
                 } else {
-                    sample_console(&mut process, &subprocess.join(" "), &config)
+                    eprintln!("Error: Neither raw data file name nor flame graph name is provided!");
+                    Ok(())
                 }
             },
             Err(e) => Err(e)
