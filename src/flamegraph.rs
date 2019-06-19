@@ -100,16 +100,141 @@ impl Flamegraph {
 
     fn filter_records(&self, start_ts: u64, end_ts: u64) -> HashMap<String, usize> {
         let mut ret = HashMap::new();
-        for (stack_str, statistics) in &self.counts {
-            let mut counter: usize = 0;
-            for (_, ref num) in statistics.range((Included(&start_ts), Excluded(&end_ts))) {
-                counter += **num;
-            }
+        if start_ts < end_ts {
+            for (stack_str, statistics) in &self.counts {
+                let mut counter: usize = 0;
+                for (_, ref num) in statistics.range((Included(&start_ts), Excluded(&end_ts))) {
+                    counter += **num;
+                }
 
-            if counter > 0 {
-                ret.insert(stack_str.clone(), counter);
+                if counter > 0 {
+                    ret.insert(stack_str.clone(), counter);
+                }
             }
         }
         ret
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_invalid_time_interval() {
+        let mut test_flame = Flamegraph::new(true);
+        let stack_trace_a = "test_stack_trace_a";
+        let stack_trace_b = "test_stack_trace_b";
+
+        {
+            let test_records = &mut test_flame.counts;
+            
+            // Insert two records
+            (*test_records.entry(String::from(stack_trace_a)).or_insert(BTreeMap::new())).insert(5, 2);
+            (*test_records.entry(String::from(stack_trace_b)).or_insert(BTreeMap::new())).insert(10, 2); 
+        }
+
+        let test_ret = test_flame.filter_records(5, 0);
+        assert!(test_ret.is_empty());
+
+        let test_ret = test_flame.filter_records(5, 5);
+        assert!(test_ret.is_empty());
+
+        let test_ret = test_flame.filter_records(5, 6);
+        let stack_trace_a = String::from(stack_trace_a);
+        assert_eq!(test_ret.len(), 1);
+        assert!(test_ret.contains_key(&stack_trace_a));
+        assert_eq!(*test_ret.get(&stack_trace_a).unwrap_or(&0), 2);
+
+        let test_ret = test_flame.filter_records(10, 0);
+        assert!(test_ret.is_empty());
+
+        let test_ret = test_flame.filter_records(10, 10);
+        assert!(test_ret.is_empty());
+
+        let test_ret = test_flame.filter_records(10, 11);
+        let stack_trace_b = String::from(stack_trace_b);
+        assert_eq!(test_ret.len(), 1);
+        assert!(test_ret.contains_key(&stack_trace_b));
+        assert_eq!(*test_ret.get(&stack_trace_b).unwrap_or(&0), 2);
+    }
+
+    #[test]
+    fn test_single_value_filtering() {
+        let mut test_flame = Flamegraph::new(true);
+        let stack_trace_a = "test_stack_trace_a";
+        let stack_trace_b = "test_stack_trace_b";
+
+        {
+            let test_records = &mut test_flame.counts;
+            
+            // Insert two records
+            (*test_records.entry(String::from(stack_trace_a)).or_insert(BTreeMap::new())).insert(5, 3);
+            (*test_records.entry(String::from(stack_trace_b)).or_insert(BTreeMap::new())).insert(10, 3); 
+        }
+
+        let test_ret = test_flame.filter_records(5, 10);
+        let stack_trace_a = String::from(stack_trace_a);
+        assert_eq!(test_ret.len(), 1);
+        assert!(test_ret.contains_key(&stack_trace_a));
+        assert_eq!(*test_ret.get(&stack_trace_a).unwrap_or(&0), 3);
+
+        let test_ret = test_flame.filter_records(10, 11);
+        let stack_trace_b = String::from(stack_trace_b);
+        assert_eq!(test_ret.len(), 1);
+        assert!(test_ret.contains_key(&stack_trace_b));
+        assert_eq!(*test_ret.get(&stack_trace_a).unwrap_or(&0), 3);
+
+        let test_ret = test_flame.filter_records(5, 11);
+        assert_eq!(test_ret.len(), 2);
+        assert!(test_ret.contains_key(&stack_trace_a));
+        assert_eq!(*test_ret.get(&stack_trace_a).unwrap_or(&0), 3);
+        assert!(test_ret.contains_key(&stack_trace_b));
+        assert_eq!(*test_ret.get(&stack_trace_b).unwrap_or(&0), 3);
+    }
+
+    #[test]
+    fn test_multiple_values_aggregation() {
+        let mut test_flame = Flamegraph::new(true);
+        let stack_trace_a = "test_stack_trace_a";
+        let stack_trace_b = "test_stack_trace_b";
+
+        // Insert records into stack_trace_a
+        {
+            let test_records = &mut test_flame.counts;
+            test_records.insert(String::from(stack_trace_a), BTreeMap::new());
+
+            let stack_trace_a_string = String::from(stack_trace_a);
+            let statistics = test_records.get_mut(&stack_trace_a_string).unwrap();
+
+            // Insert records
+            statistics.insert(5, 1);
+            statistics.insert(10, 2);
+            statistics.insert(15, 3);
+        }
+
+        // Insert records into stack_trace_b
+        {
+            let test_records = &mut test_flame.counts;
+            test_records.insert(String::from(stack_trace_b), BTreeMap::new());
+
+            let stack_trace_b_string = String::from(stack_trace_b);
+            let statistics = test_records.get_mut(&stack_trace_b_string).unwrap();
+
+            // Insert records
+            statistics.insert(7, 4);
+            statistics.insert(12, 5);
+            statistics.insert(19, 6);
+        }
+
+        let stack_trace_a = String::from(stack_trace_a);
+        let stack_trace_b = String::from(stack_trace_b);
+
+        let test_ret = test_flame.filter_records(5, 21);
+        assert_eq!(test_ret.len(), 2);
+        assert!(test_ret.contains_key(&stack_trace_a));
+        assert!(test_ret.contains_key(&stack_trace_b));
+        assert_eq!(*test_ret.get(&stack_trace_a).unwrap_or(&0), 6);
+        assert_eq!(*test_ret.get(&stack_trace_b).unwrap_or(&0), 15);
     }
 }
