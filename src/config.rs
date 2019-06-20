@@ -19,8 +19,6 @@ pub struct Config {
 
     pub start_ts: u64,
     pub end_ts: u64,
-
-    pub compare: bool,
 }
 
 impl Config {
@@ -94,9 +92,6 @@ impl Config {
                 .help("The value of ending timestamp for generating flame graph")
                 .default_value("2")
                 .takes_value(true))
-            .arg(Arg::with_name("compare")
-                .long("compare")
-                .help("Enable comparison with old implementation"))
             .arg(Arg::with_name("python_program")
                 .help("commandline of a python program to run")
                 .multiple(true)
@@ -123,7 +118,6 @@ impl Config {
         let show_line_numbers = matches.occurrences_of("function") == 0;
         let non_blocking = matches.occurrences_of("nonblocking") > 0;
         let mut native = matches.occurrences_of("native") > 0;
-        let compare = matches.occurrences_of("compare") > 0;
 
         if !allow_native && native {
             error!("Native stack traces are not yet supported on this OS. Disabling");
@@ -133,6 +127,6 @@ impl Config {
         Ok(Config{pid, python_program, dump, flame_file_name, data_file_name,
                   sampling_rate, duration,
                   show_line_numbers, non_blocking, native,
-                  start_ts, end_ts, compare})
+                  start_ts, end_ts})
     }
 }
