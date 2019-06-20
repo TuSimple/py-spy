@@ -219,6 +219,7 @@ impl NativeStack {
             }
             trace.os_thread_id = Some(os_thread_id.id()?);
             trace.frames = merged;
+            trace.active = os_thread_id.active()?;
         }
         Ok(traces)
     }
