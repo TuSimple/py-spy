@@ -72,9 +72,9 @@ impl PythonSpy {
                         0
                     }
                 }
-             },
-             _ => {
-                 match python_info.get_symbol("_PyThreadState_Current") {
+            },
+            _ => {
+                match python_info.get_symbol("_PyThreadState_Current") {
                     Some(&addr) => {
                         info!("Found _PyThreadState_Current @ 0x{:016x}", addr);
                         addr as usize
@@ -84,8 +84,8 @@ impl PythonSpy {
                         0
                     }
                 }
-             }
-         };
+            }
+        };
 
         let version_string = format!("python{}.{}", version.major, version.minor);
 
