@@ -33,6 +33,7 @@ pub struct Config {
     #[doc(hidden)]
     pub show_line_numbers: bool,
     #[doc(hidden)]
+<<<<<<< dc1b613af921092d356406d6e93cc7790af00940
     pub duration: RecordDuration,
     #[doc(hidden)]
     pub include_idle: bool,
@@ -56,6 +57,13 @@ arg_enum!{
 pub enum RecordDuration {
     Unlimited,
     Seconds(u64)
+=======
+    pub duration: u64,
+    #[doc(hidden)]
+    pub start_ts: u64,
+    #[doc(hidden)]
+    pub end_ts: u64,
+>>>>>>> Enable conditional compilation for validation.
 }
 
 impl Default for Config {
@@ -113,6 +121,7 @@ impl Config {
         let matches = App::new(crate_name!())
             .version(crate_version!())
             .about(crate_description!())
+<<<<<<< dc1b613af921092d356406d6e93cc7790af00940
             .setting(clap::AppSettings::InferSubcommands)
             .setting(clap::AppSettings::SubcommandRequiredElseHelp)
             .global_setting(clap::AppSettings::DeriveDisplayOrder)
@@ -193,6 +202,76 @@ impl Config {
                 .arg(nonblocking.clone())
             )
             .get_matches_from_safe(args)?;
+=======
+            .arg(Arg::with_name("function")
+                .short("F")
+                .long("function")
+                .help("Aggregate samples by function name instead of by line number"))
+            .arg(Arg::with_name("native")
+                .short("n")
+                .long("native")
+                .hidden(!allow_native)
+                .help("Collect stack traces from native extensions written in Cython, C or C++"))
+            .arg(Arg::with_name("pid")
+                .short("p")
+                .long("pid")
+                .value_name("pid")
+                .help("PID of a running python program to spy on")
+                .takes_value(true)
+                .required_unless("python_program"))
+            .arg(Arg::with_name("dump")
+                .long("dump")
+                .help("Dump the current stack traces to stdout"))
+            .arg(Arg::with_name("nonblocking")
+                .long("nonblocking")
+                .help("Don't pause the python process when collecting samples. Setting this option will reduce \
+                      the perfomance impact of sampling, but may lead to inaccurate results"))
+            .arg(Arg::with_name("flame")
+                .short("f")
+                .long("flame")
+                .value_name("flamefile")
+                .help("Generate a flame graph and write to a file")
+                .takes_value(true))
+            .arg(Arg::with_name("rate")
+                .short("r")
+                .long("rate")
+                .value_name("rate")
+                .help("The number of samples to collect per second")
+                .default_value("100")
+                .takes_value(true))
+            .arg(Arg::with_name("duration")
+                .short("d")
+                .long("duration")
+                .value_name("duration")
+                .help("The number of seconds to sample for when generating a flame graph")
+                .default_value("2")
+                .takes_value(true))
+            .arg(Arg::with_name("output")
+                .short("o")
+                .long("output")
+                .value_name("outputfile")
+                .help("Output raw data from sampling to a file")
+                .takes_value(true))
+            .arg(Arg::with_name("start_timestamp")
+                .short("s")
+                .long("startts")
+                .value_name("start_timestamp")
+                .help("The value of starting timestamp for generating flame graph")
+                .default_value("0")
+                .takes_value(true))
+            .arg(Arg::with_name("end_timestamp")
+                .short("e")
+                .long("endts")
+                .value_name("end_timestamp")
+                .help("The value of ending timestamp for generating flame graph")
+                .default_value("2")
+                .takes_value(true))
+            .arg(Arg::with_name("python_program")
+                .help("commandline of a python program to run")
+                .multiple(true)
+                )
+            .get_matches();
+>>>>>>> Enable conditional compilation for validation.
         info!("Command line args: {:?}", matches);
 
         let mut config = Config::default();
@@ -230,8 +309,26 @@ impl Config {
         config.non_blocking = matches.occurrences_of("nonblocking") > 0;
         config.native = matches.occurrences_of("native") > 0;
 
+<<<<<<< dc1b613af921092d356406d6e93cc7790af00940
         // disable native profiling if invalidly asked for
         if !allow_native && config.native {
+=======
+        // what to generate
+        let data_file_name = matches.value_of("output").map(|f| f.to_owned());
+        let dump = matches.occurrences_of("dump") > 0;
+        let flame_file_name = matches.value_of("flame").map(|f| f.to_owned());
+        let start_ts = value_t!(matches, "start_timestamp", u64)?;
+        let end_ts = value_t!(matches, "end_timestamp", u64)?;
+
+        // how to sample
+        let sampling_rate = value_t!(matches, "rate", u64)?;
+        let duration = value_t!(matches, "duration", u64)?;
+        let show_line_numbers = matches.occurrences_of("function") == 0;
+        let non_blocking = matches.occurrences_of("nonblocking") > 0;
+        let mut native = matches.occurrences_of("native") > 0;
+
+        if !allow_native && native {
+>>>>>>> Enable conditional compilation for validation.
             error!("Native stack traces are not yet supported on this OS. Disabling");
             config.native = false;
         }
@@ -241,6 +338,7 @@ impl Config {
             config.native = false;
         }
 
+<<<<<<< dc1b613af921092d356406d6e93cc7790af00940
         Ok(config)
     }
 }
@@ -321,5 +419,11 @@ mod tests {
     fn test_parse_args() {
         assert_eq!(Config::from_args(&split("py-spy dude")).unwrap_err().kind,
                    clap::ErrorKind::UnrecognizedSubcommand);
+=======
+        Ok(Config{pid, python_program, dump, flame_file_name, data_file_name,
+                  sampling_rate, duration,
+                  show_line_numbers, non_blocking, native,
+                  start_ts, end_ts})
+>>>>>>> Enable conditional compilation for validation.
     }
 }

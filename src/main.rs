@@ -49,6 +49,8 @@ mod speedscope;
 mod timer;
 mod utils;
 mod version;
+
+#[cfg(feature = "validation")]
 mod old_flame;
 
 use std::io::Read;
@@ -108,7 +110,6 @@ fn sample_console(process: &mut PythonSpy,
                   display: &str,
                   config: &Config) -> Result<(), Error> {
     let rate = config.sampling_rate;
-    let compare = config.compare;
 
     // Console related
     let mut console = ConsoleViewer::new(config.show_line_numbers, display,
@@ -209,6 +210,9 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
     let mut time_stamp: u64 = 0;
     let mut sample_counter: u64 = 0;
     let mut flame = flamegraph::Flamegraph::new(config.show_line_numbers);
+
+    // If the feature "validation" is enabled, define the flame graph from original implementation
+    #[cfg(feature = "validation")]
     let mut flame_old = old_flame::OldFlamegraph::new(config.show_line_numbers);
 
     // Ctrl-C handler
