@@ -54,8 +54,8 @@ impl PythonSpy {
         info!("Found interpreter at 0x{:016x}", interpreter_address);
 
         // lets us figure out which thread has the GIL
-         let threadstate_address = match version {
-             Version{major: 3, minor: 7...8, ..} => {
+        let threadstate_address = match version {
+            Version{major: 3, minor: 7...8, ..} => {
                 match python_info.get_symbol("_PyRuntime") {
                     Some(&addr) => {
                         if let Some(offset) = pyruntime::get_tstate_current_offset(&version) {
@@ -72,9 +72,9 @@ impl PythonSpy {
                         0
                     }
                 }
-             },
-             _ => {
-                 match python_info.get_symbol("_PyThreadState_Current") {
+            },
+            _ => {
+                match python_info.get_symbol("_PyThreadState_Current") {
                     Some(&addr) => {
                         info!("Found _PyThreadState_Current @ 0x{:016x}", addr);
                         addr as usize
@@ -84,8 +84,8 @@ impl PythonSpy {
                         0
                     }
                 }
-             }
-         };
+            }
+        };
 
         let version_string = format!("python{}.{}", version.major, version.minor);
 
