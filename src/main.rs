@@ -49,6 +49,7 @@ mod speedscope;
 mod timer;
 mod utils;
 mod version;
+mod old_flame;
 
 use std::io::Read;
 use std::io::Write;
@@ -107,6 +108,7 @@ fn sample_console(process: &mut PythonSpy,
                   display: &str,
                   config: &Config) -> Result<(), Error> {
     let rate = config.sampling_rate;
+    let compare = config.compare;
 
     // Console related
     let mut console = ConsoleViewer::new(config.show_line_numbers, display,
@@ -207,6 +209,7 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
     let mut time_stamp: u64 = 0;
     let mut sample_counter: u64 = 0;
     let mut flame = flamegraph::Flamegraph::new(config.show_line_numbers);
+    let mut flame_old = old_flame::OldFlamegraph::new(config.show_line_numbers);
 
     // Ctrl-C handler
     let running = Arc::new(AtomicBool::new(true));
@@ -270,7 +273,7 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
                     break;
                 } else {
                     console.increment_error(time_stamp, &err)?;
-                    errors += 1;
+                    errors += 1; 
                 }
             }
         }
