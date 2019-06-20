@@ -62,11 +62,6 @@ impl Config {
                 .short("F")
                 .long("function")
                 .help("Aggregate samples by function name instead of by line number"))
-            .arg(Arg::with_name("native")
-                .short("n")
-                .long("native")
-                .hidden(!allow_native)
-                .help("Collect stack traces from native extensions written in Cython, C or C++"))
             .arg(Arg::with_name("pid")
                 .short("p")
                 .long("pid")
@@ -146,12 +141,18 @@ impl Config {
         let duration = value_t!(matches, "duration", u64)?;
         let show_line_numbers = matches.occurrences_of("function") == 0;
         let non_blocking = matches.occurrences_of("nonblocking") > 0;
-        let mut native = matches.occurrences_of("native") > 0;
 
-        if !allow_native && native {
-            error!("Native stack traces are not yet supported on this OS. Disabling");
-            native = false;
-        }
+        // Determine whether tracing native stack traces is enabled
+        let native: bool = match allow_native {
+            true => {
+                info!("Native stack traces are supported on this OS. Enabling.");
+                true
+            }
+            false => {
+                info!("Native stack traces are not yet supported on this OS.");
+                false
+            }
+        };
 
         if native && non_blocking {
             error!("Can't get native stack traces with the --nonblocking option. Disabling native.");
