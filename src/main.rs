@@ -43,6 +43,8 @@ mod flamegraph;
 mod utils;
 mod timer;
 mod version;
+
+#[cfg(feature = "validation")]
 mod old_flame;
 
 use std::io::Read;
@@ -100,7 +102,6 @@ fn permission_denied(err: &Error) -> bool {
 fn sample_work(process: &mut PythonSpy, config: &config::Config,
                display: &str, filename: &str) -> Result<(), Error> {
     let rate = config.sampling_rate;
-    let compare = config.compare;
 
     // Console related
     let mut console = ConsoleViewer::new(config.show_line_numbers, display,
@@ -114,6 +115,9 @@ fn sample_work(process: &mut PythonSpy, config: &config::Config,
     let mut time_stamp: u64 = 0;
     let mut sample_counter: u64 = 0;
     let mut flame = flamegraph::Flamegraph::new(config.show_line_numbers);
+
+    // If the feature "validation" is enabled, define the flame graph from original implementation
+    #[cfg(feature = "validation")]
     let mut flame_old = old_flame::OldFlamegraph::new(config.show_line_numbers);
 
     // Ctrl-C handler
@@ -140,9 +144,10 @@ fn sample_work(process: &mut PythonSpy, config: &config::Config,
             Ok(traces) => {
                 console.increment(time_stamp, &traces)?;
                 flame.increment(time_stamp, &traces)?;
-                if compare {
-                    flame_old.increment(&traces)?;
-                }
+                
+                #[cfg(feature = "validation")]
+                flame_old.increment(&traces)?;
+                
                 samples += 1;
             },
             Err(err) => {
@@ -170,12 +175,14 @@ fn sample_work(process: &mut PythonSpy, config: &config::Config,
     }
 
     println!("Write raw data of flame graph to the file '{}'. Samples: {} Errors: {}", filename, samples, errors);
-    if compare {
+
+    #[cfg(feature = "validation")] {
         let flame_new = flame.filter_records(0, time_stamp + 1);
         println!("Compare results.");
         assert_eq!(flame_new, flame_old.counts, "Fail!");
         println!("Success!");
     }
+    
     output_raw_data(&filename, &flame)
 
     // open generated flame graph in the browser on OSX (theory being that on linux
