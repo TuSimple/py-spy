@@ -89,7 +89,7 @@ impl Flamegraph {
         Ok(())
     }
 
-    fn filter_records(&self, start_ts: u64, end_ts: u64) -> HashMap<String, usize> {
+    pub fn filter_records(&self, start_ts: u64, end_ts: u64) -> HashMap<String, usize> {
         let mut ret = HashMap::new();
         if start_ts < end_ts {
             for (stack_str, statistics) in &self.counts {

@@ -45,6 +45,7 @@ mod console_viewer;
 mod flamegraph;
 mod utils;
 mod version;
+mod old_flame;
 
 use std::io::Read;
 use std::io::Write;
@@ -101,6 +102,7 @@ fn permission_denied(err: &Error) -> bool {
 fn sample_work(process: &mut PythonSpy, config: &config::Config,
                display: &str, filename: &str) -> Result<(), Error> {
     let rate = config.sampling_rate;
+    let compare = config.compare;
 
     // Console related
     let mut console = ConsoleViewer::new(config.show_line_numbers, display,
@@ -114,6 +116,7 @@ fn sample_work(process: &mut PythonSpy, config: &config::Config,
     let mut time_stamp: u64 = 0;
     let mut sample_counter: u64 = 0;
     let mut flame = flamegraph::Flamegraph::new(config.show_line_numbers);
+    let mut flame_old = old_flame::OldFlamegraph::new(config.show_line_numbers);
 
     // Ctrl-C handler
     let running = Arc::new(AtomicBool::new(true));
@@ -139,6 +142,9 @@ fn sample_work(process: &mut PythonSpy, config: &config::Config,
             Ok(traces) => {
                 console.increment(time_stamp, &traces)?;
                 flame.increment(time_stamp, &traces)?;
+                if compare {
+                    flame_old.increment(&traces)?;
+                }
                 samples += 1;
             },
             Err(err) => {
@@ -148,7 +154,7 @@ fn sample_work(process: &mut PythonSpy, config: &config::Config,
                     break;
                 } else {
                     console.increment_error(time_stamp, &err)?;
-                    errors += 1;
+                    errors += 1; 
                 }
             }
         }
@@ -166,6 +172,12 @@ fn sample_work(process: &mut PythonSpy, config: &config::Config,
     }
 
     println!("Write raw data of flame graph to the file '{}'. Samples: {} Errors: {}", filename, samples, errors);
+    if compare {
+        let flame_new = flame.filter_records(0, time_stamp + 1);
+        println!("Compare results.");
+        assert_eq!(flame_new, flame_old.counts, "Fail!");
+        println!("Success!");
+    }
     output_raw_data(&filename, &flame)
 
     // open generated flame graph in the browser on OSX (theory being that on linux
