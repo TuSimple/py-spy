@@ -134,7 +134,7 @@ fn sample_work(process: &mut PythonSpy, config: &config::Config,
         if let Err(elapsed) = sleep {
             console.increment_late_sample(elapsed);
         }
-
+        
         // Stop sampling when receiving Ctrl-C
         if !running.load(Ordering::SeqCst) {
             exit_message = "Stopped sampling because Control-C pressed";
