@@ -235,7 +235,7 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
                 term.move_cursor_down(1)?;
             }
         }
-
+        
         // Stop sampling when receiving Ctrl-C
         if !running.load(Ordering::SeqCst) {
             exit_message = "Stopped sampling because Control-C pressed";
