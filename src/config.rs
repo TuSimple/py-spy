@@ -53,7 +53,7 @@ impl Config {
     /// Uses clap to set config options from commandline arguments
     pub fn from_commandline() -> Result<Config, Error> {
         // we don't yet support native tracing on 32 bit linux
-        let allow_native = cfg!(unwind);
+        // let allow_native = !cfg!(all(target_os="linux", target_pointer_width="32"));
 
         let matches = App::new(crate_name!())
             .version(crate_version!())
@@ -143,6 +143,7 @@ impl Config {
         let non_blocking = matches.occurrences_of("nonblocking") > 0;
 
         // Determine whether tracing native stack traces is enabled
+        /*
         let native: bool = match allow_native {
             true => {
                 info!("Native stack traces are supported on this OS. Enabling.");
@@ -153,6 +154,7 @@ impl Config {
                 false
             }
         };
+        */
 
         if native && non_blocking {
             error!("Can't get native stack traces with the --nonblocking option. Disabling native.");
@@ -161,7 +163,7 @@ impl Config {
 
         Ok(Config{pid, python_program, dump, flame_file_name, data_file_name,
                   sampling_rate, duration,
-                  show_line_numbers, non_blocking, native,
+                  show_line_numbers, non_blocking, native: false,
                   start_ts, end_ts})
     }
 }
