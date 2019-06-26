@@ -1,6 +1,7 @@
 use failure::{Error, ResultExt};
 use remoteprocess::ProcessMemory;
 
+use crate::idlelist::check_idle;
 use crate::python_interpreters::{InterpreterState, ThreadState, FrameObject, CodeObject, StringObject, BytesObject};
 
 #[derive(Debug)]
@@ -39,7 +40,7 @@ pub fn get_stack_traces<I, P>(interpreter: &I, process: &P) -> Result<(Vec<Stack
 }
 
 /// Gets a stack trace for an individual thread
-pub fn get_stack_trace<T, P >(thread: &T, process: &P) -> Result<StackTrace, Error>
+pub fn get_stack_trace<T, P>(thread: &T, process: &P) -> Result<StackTrace, Error>
         where T: ThreadState, P: ProcessMemory {
     let mut frames = Vec::new();
     let mut frame_ptr = thread.frame();
@@ -67,12 +68,7 @@ pub fn get_stack_trace<T, P >(thread: &T, process: &P) -> Result<StackTrace, Err
         // function/file to figure out if the thread is waiting (which seems to handle
         // most cases)
         let frame = &frames[0];
-        (frame.name == "wait" && frame.filename.ends_with("threading.py")) ||
-        (frame.name == "select" && frame.filename.ends_with("selectors.py")) ||
-        (frame.name == "poll" && (frame.filename.ends_with("asyncore.py") ||
-                                  frame.filename.contains("zmq") ||
-                                  frame.filename.contains("gevent") ||
-                                  frame.filename.contains("tornado")))
+        check_idle(&frame.name, &frame.filename)
     };
 
     Ok(StackTrace{frames, thread_id: thread.thread_id(), owns_gil: false, active: !idle, os_thread_id: None})
