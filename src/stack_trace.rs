@@ -1,6 +1,7 @@
 use failure::{Error, ResultExt};
 use remoteprocess::ProcessMemory;
 
+use crate::idlelist::check_idle;
 use crate::python_interpreters::{InterpreterState, ThreadState, FrameObject, CodeObject, StringObject, BytesObject};
 
 /// Call stack for a single python thread
@@ -52,7 +53,7 @@ pub fn get_stack_traces<I, P>(interpreter: &I, process: &P) -> Result<(Vec<Stack
 }
 
 /// Gets a stack trace for an individual thread
-pub fn get_stack_trace<T, P >(thread: &T, process: &P) -> Result<StackTrace, Error>
+pub fn get_stack_trace<T, P>(thread: &T, process: &P) -> Result<StackTrace, Error>
         where T: ThreadState, P: ProcessMemory {
     // TODO: just return frames here? everything else probably should be returned out of scopee
     let mut frames = Vec::new();
@@ -73,7 +74,18 @@ pub fn get_stack_trace<T, P >(thread: &T, process: &P) -> Result<StackTrace, Err
         frame_ptr = frame.back();
     }
 
-    Ok(StackTrace{frames, thread_id: thread.thread_id(), owns_gil: false, active: true, os_thread_id: None})
+    // figure out if the thread is running
+    let idle = if frames.is_empty() {
+        true
+    } else {
+        // TODO: better idle detection. This is just hackily looking at the
+        // function/file to figure out if the thread is waiting (which seems to handle
+        // most cases)
+        let frame = &frames[0];
+        check_idle(&frame.name, &frame.filename)
+    };
+
+    Ok(StackTrace{frames, thread_id: thread.thread_id(), owns_gil: false, active: !idle, os_thread_id: None})
 }
 
 impl StackTrace {

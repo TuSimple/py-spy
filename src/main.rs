@@ -34,6 +34,7 @@ mod binary_parser;
 mod cython;
 #[cfg(unwind)]
 mod native_stack_trace;
+mod idlelist;
 mod python_bindings;
 mod python_interpreters;
 mod python_spy;
@@ -56,6 +57,7 @@ use std::time::Duration;
 
 use failure::Error;
 
+use idlelist::load_idle_list;
 use python_spy::PythonSpy;
 use stack_trace::StackTrace;
 use console_viewer::ConsoleViewer;
@@ -235,6 +237,7 @@ fn pyspy_main() -> Result<(), Error> {
         } else if let Some(ref flame_file) = config.flame_file_name {
             generate_flame_graph(&flame_file, config.start_ts, config.end_ts)?;
         } else if let Some(ref data_file) = config.data_file_name {
+            load_idle_list(&config.idlelist)?;
             sample_work(&mut process, &config, &format!("pid: {}", pid), data_file)?;
         } else {
             eprintln!("Error: Neither raw data file name nor flame graph name is provided!");
@@ -275,6 +278,7 @@ fn pyspy_main() -> Result<(), Error> {
                 if let Some(ref flame_file) = config.flame_file_name {
                     generate_flame_graph(&flame_file, config.start_ts, config.end_ts)
                 } else if let Some(ref data_file) = config.data_file_name {
+                    load_idle_list(&config.idlelist)?;
                     sample_work(&mut process, &config, &subprocess.join(" "), data_file)
                 } else {
                     eprintln!("Error: Neither raw data file name nor flame graph name is provided!");

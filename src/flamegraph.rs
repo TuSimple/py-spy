@@ -102,6 +102,8 @@ impl Flamegraph {
                     ret.insert(stack_str.clone(), counter);
                 }
             }
+        } else {
+            eprintln!("Error: Invalid time interval [{}, {})", start_ts, end_ts);
         }
         ret
     }

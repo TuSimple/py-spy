@@ -34,6 +34,8 @@ pub struct Config {
     #[doc(hidden)]
     pub duration: u64,
     #[doc(hidden)]
+    pub idlelist: Option<String>,
+    #[doc(hidden)]
     pub start_ts: u64,
     #[doc(hidden)]
     pub end_ts: u64,
@@ -45,7 +47,7 @@ impl Default for Config {
     fn default() -> Config {
         Config{pid: None, python_program: None, dump: false, flame_file_name: None,
                data_file_name: None, non_blocking: false, show_line_numbers: false,
-               sampling_rate: 100, duration: 2, native: false, start_ts: 0, end_ts: 2}
+               sampling_rate: 100, duration: 2, native: false, idlelist: None, start_ts: 0, end_ts: 2}
     }
 }
 
@@ -79,7 +81,7 @@ impl Config {
             .arg(Arg::with_name("flame")
                 .short("f")
                 .long("flame")
-                .value_name("flamefile")
+                .value_name("flame file")
                 .help("Generate a flame graph and write to a file")
                 .takes_value(true))
             .arg(Arg::with_name("rate")
@@ -116,10 +118,15 @@ impl Config {
                 .help("The value of ending timestamp for generating flame graph")
                 .default_value("2")
                 .takes_value(true))
+            .arg(Arg::with_name("idlelist")
+                .short("b")
+                .long("idlelist")
+                .value_name("idlelist file")
+                .help("The file containing symbols if the trace contains, then the process is considered idle.")
+                .takes_value(true))
             .arg(Arg::with_name("python_program")
                 .help("commandline of a python program to run")
-                .multiple(true)
-                )
+                .multiple(true))
             .get_matches();
         info!("Command line args: {:?}", matches);
 
@@ -141,6 +148,7 @@ impl Config {
         let duration = value_t!(matches, "duration", u64)?;
         let show_line_numbers = matches.occurrences_of("function") == 0;
         let non_blocking = matches.occurrences_of("nonblocking") > 0;
+        let idlelist = matches.value_of("idlelist").map(|f| f.to_owned());
 
         // Determine whether tracing native stack traces is enabled
         /*
@@ -164,6 +172,6 @@ impl Config {
         Ok(Config{pid, python_program, dump, flame_file_name, data_file_name,
                   sampling_rate, duration,
                   show_line_numbers, non_blocking, native: false,
-                  start_ts, end_ts})
+                  idlelist, start_ts, end_ts})
     }
 }
