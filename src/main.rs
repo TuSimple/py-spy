@@ -398,13 +398,11 @@ fn pyspy_main() -> Result<(), Error> {
         if config.dump {
             println!("{}\nPython version {}", process.process.exe()?, process.version);
             print_traces(&process.get_stack_traces()?, true);
-        } else if let Some(ref flame_file) = config.flame_file_name {
-            generate_flame_graph(&flame_file, config.start_ts, config.end_ts)?;
         } else if let Some(ref data_file) = config.data_file_name {
             load_idle_list(&config.idlelist);
             sample_work(&mut process, &config, &format!("pid: {}", pid), data_file)?;
         } else {
-            eprintln!("Error: Neither raw data file name nor flame graph name is provided!");
+            eprintln!("Error: Raw data file name is not provided!");
         }
 >>>>>>> Better loading idle list.
     }
@@ -468,6 +466,8 @@ fn pyspy_main() -> Result<(), Error> {
             // eprintln!("Error killing child process {}", e);
         }
         return result;
+    } else if let Some(ref flame_file) = config.flame_file_name {
+        generate_flame_graph(&flame_file, config.start_ts, config.end_ts)?;
     }
 
     Ok(())
