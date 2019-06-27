@@ -239,7 +239,7 @@ fn pyspy_main() -> Result<(), Error> {
         } else if let Some(ref flame_file) = config.flame_file_name {
             generate_flame_graph(&flame_file, config.start_ts, config.end_ts)?;
         } else if let Some(ref data_file) = config.data_file_name {
-            load_idle_list(&config.idlelist)?;
+            load_idle_list(&config.idlelist);
             sample_work(&mut process, &config, &format!("pid: {}", pid), data_file)?;
         } else {
             eprintln!("Error: Neither raw data file name nor flame graph name is provided!");
@@ -266,7 +266,7 @@ fn pyspy_main() -> Result<(), Error> {
                 if let Some(ref flame_file) = config.flame_file_name {
                     generate_flame_graph(&flame_file, config.start_ts, config.end_ts)
                 } else if let Some(ref data_file) = config.data_file_name {
-                    load_idle_list(&config.idlelist)?;
+                    load_idle_list(&config.idlelist);
                     sample_work(&mut process, &config, &subprocess.join(" "), data_file)
                 } else {
                     eprintln!("Error: Neither raw data file name nor flame graph name is provided!");
