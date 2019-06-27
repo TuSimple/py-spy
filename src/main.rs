@@ -392,7 +392,21 @@ fn pyspy_main() -> Result<(), Error> {
 
     if let Some(pid) = config.pid {
         let mut process = PythonSpy::retry_new(pid, &config, 3)?;
+<<<<<<< 854b592f05f57008e5a650c840dbc36d604b4731
         run_spy_command(&mut process, &config)?;
+=======
+        if config.dump {
+            println!("{}\nPython version {}", process.process.exe()?, process.version);
+            print_traces(&process.get_stack_traces()?, true);
+        } else if let Some(ref flame_file) = config.flame_file_name {
+            generate_flame_graph(&flame_file, config.start_ts, config.end_ts)?;
+        } else if let Some(ref data_file) = config.data_file_name {
+            load_idle_list(&config.idlelist);
+            sample_work(&mut process, &config, &format!("pid: {}", pid), data_file)?;
+        } else {
+            eprintln!("Error: Neither raw data file name nor flame graph name is provided!");
+        }
+>>>>>>> Better loading idle list.
     }
 
     else if let Some(ref subprocess) = config.python_program {

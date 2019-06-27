@@ -3,8 +3,6 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::sync::Once;
 
-use failure::Error;
-
 enum CheckMode {
     EXACT,
     ENDWITH,
@@ -22,25 +20,17 @@ static mut IDLEFUNCS: Option<Idlelist> = None;
 static INIT: Once = Once::new();
 
 /// Load the idle list from file
-pub fn load_idle_list(filename: &Option<String>) -> Result<(), Error> {
-    let mut result: Result<(), Error> = Ok(());
+pub fn load_idle_list(filename: &Option<String>) {
     INIT.call_once(|| {
         // Read the file
         match filename {
             Some(value) => {
                 match File::open(value) {
-                    Err(e) => {
-                        result = Err(Error::from(e));
-                    }
                     Ok(file) => {
                         let reader = BufReader::new(file);
                         let mut ret = HashMap::new();
                         for line in reader.lines() {
                             match line {
-                                Err(e) => {
-                                    result = Err(Error::from(e));
-                                    break;
-                                }
                                 Ok(line_string) => {
                                     let items: Vec<&str> = line_string.split_whitespace().collect();
                                     let program_mode = match items[2] {
@@ -53,20 +43,25 @@ pub fn load_idle_list(filename: &Option<String>) -> Result<(), Error> {
                                         ret.entry(items[0].to_string()).or_insert(Vec::new()).push(Program{name: items[1].to_string(), mode});
                                     }
                                 }
+                                Err(e) => {
+                                    eprintln!("Load idle list fail! Error: {}", e);
+                                    return ;
+                                }
                             }
                         }
+                        info!("Load idle list succeed!");
                         unsafe {
-                            if result.is_ok() {
-                                IDLEFUNCS = Some(ret);
-                            }
+                            IDLEFUNCS = Some(ret);
                         }
+                    }
+                    Err(e) => {
+                        eprintln!("Load idle list fail! Error: {}", e);
                     }
                 }
             }
             None => (),
         }
     });
-    result
 }
 
 /// Check whether a program is idle.
@@ -108,10 +103,12 @@ mod tests {
         // func_b program_a C
         // func_c program_b E
         let filename = String::from("tests/test_idle_list");
-        let result = load_idle_list(&Some(filename));
+        load_idle_list(&Some(filename));
 
         // load success
-        assert!(result.is_ok());
+        unsafe {
+            assert!(IDLEFUNCS.is_some());
+        }
 
         let func_a_string = String::from("func_a");
         let func_b_string = String::from("func_b");
