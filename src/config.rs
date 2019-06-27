@@ -1,4 +1,9 @@
+<<<<<<< dd5dbe1f9c44e36844d0d7eb60d8472589a3e207
 use clap::{App, Arg};
+=======
+use clap::{App, Arg, ArgGroup};
+use failure::Error;
+>>>>>>> Refine logic of parsing command-line arguments.
 use remoteprocess::Pid;
 
 /// Options on how to collect samples from a python process
