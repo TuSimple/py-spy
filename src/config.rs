@@ -84,7 +84,7 @@ impl Config {
 
     pub fn from_args(args: &[String]) -> clap::Result<Config> {
         // we don't yet support native tracing on 32 bit linux
-        // let allow_native = !cfg!(all(target_os="linux", target_pointer_width="32"));
+        let allow_native = !cfg!(all(target_os="linux", target_pointer_width="32"));
 
         // pid/native/nonblocking/rate/pythonprogram arguments can be
         // used across various subcommand - define once here
