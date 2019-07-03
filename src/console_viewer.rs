@@ -142,7 +142,8 @@ impl ConsoleViewer {
         let error_rate = self.stats.errors as f64 / self.stats.overall_samples as f64;
         if error_rate >= 0.01 && self.stats.overall_samples > 100 {
             let error_string = self.stats.last_error.as_ref().unwrap();
-            out!("Total Samples {}, Error Rate {:.2}% ({})",
+            out!("Time elapsed: {}, Total Samples {}, Error Rate {:.2}% ({})",
+                 style(time_stamp + 1).bold(),
                  style(self.stats.overall_samples).bold(),
                  style(error_rate * 100.0).bold().red(),
                  style(error_string).bold());

@@ -55,7 +55,7 @@ impl Config {
     /// Uses clap to set config options from commandline arguments
     pub fn from_commandline() -> Result<Config, Error> {
         // we don't yet support native tracing on 32 bit linux
-        // let allow_native = !cfg!(all(target_os="linux", target_pointer_width="32"));
+        let allow_native = !cfg!(all(target_os="linux", target_pointer_width="32"));
 
         let matches = App::new(crate_name!())
             .version(crate_version!())
@@ -103,6 +103,11 @@ impl Config {
             .arg(Arg::with_name("dump")
                 .long("dump")
                 .help("Dump the current stack traces to stdout"))
+            .arg(Arg::with_name("native")
+                .short("n")
+                .long("native")
+                .hidden(!allow_native)
+                .help("Collect stack traces from native extensions written in Cython, C or C++"))
             .arg(Arg::with_name("nonblocking")
                 .long("nonblocking")
                 .help("Don't pause the python process when collecting samples. Setting this option will reduce \
@@ -152,20 +157,12 @@ impl Config {
         let show_line_numbers = matches.occurrences_of("function") == 0;
         let non_blocking = matches.occurrences_of("nonblocking") > 0;
         let idlelist = matches.value_of("idlelist").map(|f| f.to_owned());
+        let mut native = matches.occurrences_of("native") > 0;
 
-        // Determine whether tracing native stack traces is enabled
-        /*
-        let native: bool = match allow_native {
-            true => {
-                info!("Native stack traces are supported on this OS. Enabling.");
-                true
-            }
-            false => {
-                info!("Native stack traces are not yet supported on this OS.");
-                false
-            }
-        };
-        */
+        if !allow_native && native {
+            error!("Native stack traces are not yet supported on this OS. Disabling");
+            native = false;
+        }
 
         if native && non_blocking {
             error!("Can't get native stack traces with the --nonblocking option. Disabling native.");
@@ -174,7 +171,7 @@ impl Config {
 
         Ok(Config{pid, python_program, dump, flame_file_name, data_file_name,
                   sampling_rate, duration,
-                  show_line_numbers, non_blocking, native: false,
+                  show_line_numbers, non_blocking, native,
                   idlelist, start_ts, end_ts})
     }
 }
