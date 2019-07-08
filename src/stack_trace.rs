@@ -1,7 +1,7 @@
 use failure::{Error, ResultExt};
 use remoteprocess::ProcessMemory;
 
-use crate::idlelist::check_idle;
+use crate::idle_list::check_idle;
 use crate::python_interpreters::{InterpreterState, ThreadState, FrameObject, CodeObject, StringObject, BytesObject};
 
 /// Call stack for a single python thread
