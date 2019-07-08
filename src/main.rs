@@ -39,7 +39,7 @@ mod binary_parser;
 mod cython;
 #[cfg(unwind)]
 mod native_stack_trace;
-mod idlelist;
+mod idle_list;
 mod python_bindings;
 mod python_interpreters;
 mod python_spy;
@@ -63,7 +63,7 @@ use std::time::Duration;
 
 use failure::Error;
 
-use idlelist::load_idle_list;
+use idle_list::load_idle_list;
 use python_spy::PythonSpy;
 use stack_trace::{StackTrace, Frame};
 use console_viewer::ConsoleViewer;
