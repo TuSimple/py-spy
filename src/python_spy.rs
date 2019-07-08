@@ -17,6 +17,7 @@ use crate::binary_parser::{parse_binary, BinaryInfo};
 use crate::config::Config;
 #[cfg(unwind)]
 use crate::native_stack_trace::NativeStack;
+use crate::idle_list::check_idle;
 use crate::python_bindings::{pyruntime, v2_7_15, v3_3_7, v3_5_5, v3_6_6, v3_7_0};
 use crate::python_interpreters::{self, InterpreterState, ThreadState};
 use crate::stack_trace::{StackTrace, get_stack_traces, get_stack_trace};
@@ -227,16 +228,16 @@ impl PythonSpy {
     // when we don't have the ability to get the thread information from the OS
     fn _heuristic_is_thread_idle(&self, trace: &StackTrace) -> bool {
         let frames = &trace.frames;
+        
+        // figure out if the thread is running
         if frames.is_empty() {
             true
         } else {
+            // TODO: better idle detection. This is just hackily looking at the
+            // function/file to figure out if the thread is waiting (which seems to handle
+            // most cases)
             let frame = &frames[0];
-            (frame.name == "wait" && frame.filename.ends_with("threading.py")) ||
-            (frame.name == "select" && frame.filename.ends_with("selectors.py")) ||
-            (frame.name == "poll" && (frame.filename.ends_with("asyncore.py") ||
-                                    frame.filename.contains("zmq") ||
-                                    frame.filename.contains("gevent") ||
-                                    frame.filename.contains("tornado")))
+            check_idle(&frame.name, &frame.filename)
         }
     }
 

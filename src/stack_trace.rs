@@ -1,7 +1,6 @@
 use failure::{Error, ResultExt};
 use remoteprocess::ProcessMemory;
 
-use crate::idle_list::check_idle;
 use crate::python_interpreters::{InterpreterState, ThreadState, FrameObject, CodeObject, StringObject, BytesObject};
 
 /// Call stack for a single python thread
@@ -74,18 +73,7 @@ pub fn get_stack_trace<T, P>(thread: &T, process: &P) -> Result<StackTrace, Erro
         frame_ptr = frame.back();
     }
 
-    // figure out if the thread is running
-    let idle = if frames.is_empty() {
-        true
-    } else {
-        // TODO: better idle detection. This is just hackily looking at the
-        // function/file to figure out if the thread is waiting (which seems to handle
-        // most cases)
-        let frame = &frames[0];
-        check_idle(&frame.name, &frame.filename)
-    };
-
-    Ok(StackTrace{frames, thread_id: thread.thread_id(), owns_gil: false, active: !idle, os_thread_id: None})
+    Ok(StackTrace{frames, thread_id: thread.thread_id(), owns_gil: false, active: true, os_thread_id: None})
 }
 
 impl StackTrace {
