@@ -237,7 +237,7 @@ impl PythonSpy {
             // function/file to figure out if the thread is waiting (which seems to handle
             // most cases)
             let frame = &frames[0];
-            check_idle(&frame.name, &frame.filename)
+            !check_idle(&frame.name, &frame.filename)
         }
     }
 
