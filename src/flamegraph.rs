@@ -69,7 +69,7 @@ impl Flamegraph {
             }).collect::<Vec<String>>().join(";");
 
             // update counts for that frame
-            let mut statistics = self.counts.entry(frame).or_insert(BTreeMap::new());
+            let statistics = self.counts.entry(frame).or_insert(BTreeMap::new());
             *statistics.entry(time_stamp).or_insert(0) += 1;
         }
         Ok(())
