@@ -7,10 +7,11 @@ fn main() {
         "macos" => println!("cargo:rustc-cfg=unwind"),
         "linux" => {
             // We only support native unwinding on x86_64 linux
-            if env::var("CARGO_CFG_TARGET_ARCH").unwrap() == "x86_64"{
-                println!("cargo:rustc-cfg=unwind");
+            match env::var("CARGO_CFG_TARGET_ARCH").unwrap().as_ref() {
+                "x86_64" | "aarch64" => println!("cargo:rustc-cfg=unwind"),
+                _ => {} 
             }
         },
-        _ => { }
+        _ => {}
     }
 }

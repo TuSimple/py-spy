@@ -125,10 +125,17 @@ impl Thread {
             let mut data: Registers = std::mem::zeroed();
             // nix has marked this as deprecated (in favour of specific functions like attach)
             // but hasn't yet exposed PTRACE_GETREGS as it's own function
-            #[allow(deprecated)]
-            ptrace::ptrace(ptrace::Request::PTRACE_GETREGS, self.tid,
-                            std::ptr::null_mut(),
-                            &mut data as *mut _ as * mut c_void)?;
+            #[allow(deprecated)] {
+                #[cfg(target_arch = "x86_64")]
+                ptrace::ptrace(ptrace::Request::PTRACE_GETREGS, self.tid,
+                                std::ptr::null_mut(),
+                                &mut data as *mut _ as * mut c_void)?;
+                
+                #[cfg(target_arch = "aarch64")]
+                ptrace::ptrace(ptrace::Request::PTRACE_GETREGSET, self.tid,
+                                std::ptr::null_mut(),
+                                &mut data as *mut _ as * mut c_void)?;
+            }
             Ok(data)
         }
     }
