@@ -26,7 +26,6 @@ extern crate termios;
 extern crate winapi;
 extern crate cpp_demangle;
 extern crate rand;
-extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
@@ -55,7 +54,6 @@ mod version;
 mod old_flame;
 
 use std::io::Read;
-use std::io::Write;
 use std::fs::File;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -142,6 +140,7 @@ fn sample_console(process: &mut PythonSpy,
 }
 
 pub trait Recorder {
+<<<<<<< c4a6d558601382ea3f3661bfa676e79814f2b20c
     fn increment(&mut self, trace: &StackTrace) -> Result<(), Error>;
     fn write(&self, w: &mut std::fs::File) -> Result<(), Error>;
 }
@@ -149,13 +148,27 @@ pub trait Recorder {
 impl Recorder for speedscope::Stats {
     fn increment(&mut self, trace: &StackTrace) -> Result<(), Error> {
         Ok(self.record(trace)?)
+=======
+    fn increment(&mut self, time_stamp: u64, traces: &[StackTrace]) -> Result<(), Error>;
+    fn output_result(&self, filename: &String) -> Result<(), Error>;
+}
+
+impl Recorder for speedscope::Stats {
+    fn increment(&mut self, _time_stamp: u64, traces: &[StackTrace]) -> Result<(), Error> {
+        for trace in traces {
+            self.record(trace)?;
+        }
+        Ok(())
+>>>>>>> Remove conflicts with previous features.
     }
-    fn write(&self, w: &mut std::fs::File) -> Result<(), Error> {
-        self.write(w)
+    fn output_result(&self, filename: &String) -> Result<(), Error> {
+        let mut out_file = std::fs::File::create(filename)?;
+        self.write(&mut out_file)
     }
 }
 
 impl Recorder for flamegraph::Flamegraph {
+<<<<<<< c4a6d558601382ea3f3661bfa676e79814f2b20c
     fn increment(&mut self, trace: &StackTrace) -> Result<(), Error> {
         Ok(self.increment(trace)?)
     }
@@ -173,6 +186,13 @@ impl Recorder for RawFlamegraph {
 
     fn write(&self, w: &mut std::fs::File) -> Result<(), Error> {
         self.0.write_raw(w)
+=======
+    fn increment(&mut self, time_stamp: u64, traces: &[StackTrace]) -> Result<(), Error> {
+        Ok(self.increment(time_stamp, traces)?)
+    } 
+    fn output_result(&self, filename: &String) -> Result<(), Error> {
+        Ok(self.output_raw_data(filename)?)
+>>>>>>> Remove conflicts with previous features.
     }
 }
 
@@ -180,7 +200,6 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
     let mut output: Box<dyn Recorder> = match config.format {
         Some(FileFormat::flamegraph) => Box::new(flamegraph::Flamegraph::new(config.show_line_numbers)),
         Some(FileFormat::speedscope) =>  Box::new(speedscope::Stats::new()),
-        Some(FileFormat::raw) => Box::new(RawFlamegraph(flamegraph::Flamegraph::new(config.show_line_numbers))),
         None => return Err(format_err!("A file format is required to record samples"))
     };
 
@@ -211,7 +230,6 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
     let mut exit_message = "";
     let mut time_stamp: u64 = 0;
     let mut sample_counter: u64 = 0;
-    let mut flame = flamegraph::Flamegraph::new(config.show_line_numbers);
 
     // If the feature "validation" is enabled, define the flame graph from original implementation
     #[cfg(feature = "validation")]
@@ -223,10 +241,6 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
     ctrlc::set_handler(move || {
         r.store(false, Ordering::SeqCst);
     })?;
-
-    let mut exit_message = "";
-    let mut time_stamp: u64 = 0;
-    let mut sample_counter: u64 = 0;
 
     for sleep in timer::Timer::new(config.sampling_rate as f64) {
         if let Err(delay) = sleep {
@@ -272,13 +286,12 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
                     }
                 }
             },
-            Err(err) => {
+            Err(_) => {
                 if process_exitted(&process.process) {
                     println!("\nprocess {} ended", process.pid);
                     exit_message = "Stopped sampling because the process ended";
                     break;
                 } else {
-                    console.increment_error(time_stamp, &err)?;
                     errors += 1; 
                 }
             }
@@ -305,10 +318,15 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
         println!("{}", exit_message);
     }
 
+<<<<<<< c4a6d558601382ea3f3661bfa676e79814f2b20c
     {
     let mut out_file = std::fs::File::create(filename)?;
     output.write(&mut out_file)?;
     }
+=======
+    output.output_result(filename)?;
+    println!("Wrote result into file '{}'. Samples: {} Errors: {}", filename, samples, errors);
+>>>>>>> Remove conflicts with previous features.
 
     match config.format.as_ref().unwrap() {
         FileFormat::flamegraph => {
@@ -327,30 +345,9 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
     // open generated flame graph in the browser on OSX (theory being that on linux
     // you might be SSH'ed into a server somewhere and this isn't desired, but on
     // that is pretty unlikely for osx) (note to self: xdg-open will open on linux)
-    // #[cfg(target_os = "macos")]
-    // std::process::Command::new("open").arg(filename).spawn()?;
-}
+    #[cfg(target_os = "macos")]
+    std::process::Command::new("open").arg(filename).spawn()?;
 
-fn output_raw_data(filename: &str, flame: &flamegraph::Flamegraph) -> Result<(), Error> {
-    let mut out_file = File::create(filename)?;
-    let ret = serde_json::to_string(&flame).unwrap();
-    out_file.write_all(ret.as_bytes()).expect("Fail to write raw data");
-    Ok(())
-}
-
-fn generate_flame_graph(filename: &String, start_ts: u64, end_ts: u64) -> Result<(), Error> {
-    println!("Try to open the file {}", filename);
-    let mut input_file = File::open(&filename)?;
-    let mut content_string = String::new();
-    input_file.read_to_string(&mut content_string)?;
-    let content: flamegraph::Flamegraph = serde_json::from_str(&content_string).unwrap();
-    println!("The raw data contains {} different stack traces.", content.counts.len());
-    let mut flame_name = String::new();
-    flame_name.push_str(filename);
-    flame_name.push_str(".svg");
-    println!("Generate flame graph to the file '{}' from '{}'. Starting at {}, Ending at {}", flame_name, filename, start_ts, end_ts);
-    let target = File::create(flame_name)?;
-    content.write_file(target, start_ts, end_ts)?;
     Ok(())
 }
 
@@ -390,21 +387,26 @@ fn pyspy_main() -> Result<(), Error> {
         }
     }
 
-    if let Some(pid) = config.pid {
+    load_idle_list(&config.idlelist);
+
+    if let Some(ref filename) = config.data_file {
+        println!("Try to open the file {}", filename);
+        let mut input_file = File::open(&filename)?;
+        let mut content_string = String::new();
+        input_file.read_to_string(&mut content_string)?;
+        let content: flamegraph::Flamegraph = serde_json::from_str(&content_string).unwrap();
+        println!("The raw data contains {} different stack traces.", content.counts.len());
+        let mut flame_name = String::new();
+        flame_name.push_str(filename);
+        flame_name.push_str(".svg");
+        println!("Generate flame graph to the file '{}' from '{}'. Starting at {}, Ending at {}", flame_name, filename, config.start_ts, config.end_ts);
+        let target = File::create(flame_name)?;
+        content.write(target, config.start_ts, config.end_ts)?;
+    }
+
+    else if let Some(pid) = config.pid {
         let mut process = PythonSpy::retry_new(pid, &config, 3)?;
-<<<<<<< 854b592f05f57008e5a650c840dbc36d604b4731
         run_spy_command(&mut process, &config)?;
-=======
-        if config.dump {
-            println!("{}\nPython version {}", process.process.exe()?, process.version);
-            print_traces(&process.get_stack_traces()?, true);
-        } else if let Some(ref data_file) = config.data_file_name {
-            load_idle_list(&config.idlelist);
-            sample_work(&mut process, &config, &format!("pid: {}", pid), data_file)?;
-        } else {
-            eprintln!("Error: Raw data file name is not provided!");
-        }
->>>>>>> Better loading idle list.
     }
 
     else if let Some(ref subprocess) = config.python_program {
@@ -466,8 +468,6 @@ fn pyspy_main() -> Result<(), Error> {
             // eprintln!("Error killing child process {}", e);
         }
         return result;
-    } else if let Some(ref flame_file) = config.flame_file_name {
-        generate_flame_graph(&flame_file, config.start_ts, config.end_ts)?;
     }
 
     Ok(())

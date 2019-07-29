@@ -30,6 +30,7 @@ use std::collections::HashMap;
 use std::collections::BTreeMap;
 use std::ops::Bound::Included;
 use std::ops::Bound::Excluded;
+use std::io::Write;
 use std::fs::File;
 
 
@@ -37,7 +38,6 @@ use failure::Error;
 use inferno::flamegraph::{Direction, Options};
 
 use stack_trace::StackTrace;
-use serde::{Deserialize, Serialize};
 
 type Records = HashMap<String, BTreeMap<u64, usize>>;
 
@@ -69,8 +69,11 @@ impl Flamegraph {
         Ok(())
     }
 
-    fn get_lines(&self) -> Vec<String> {
-        self.counts.iter().map(|(k, v)| format!("{} {}", k, v)).collect()
+    pub fn output_raw_data(&self, filename: &String) -> Result<(), Error> {
+        let mut out_file = File::create(filename)?;
+        let ret = serde_json::to_string(&Self { counts: self.counts.clone(), show_linenumbers: self.show_linenumbers }).unwrap();
+        out_file.write_all(ret.as_bytes()).expect("Fail to write raw data");
+        Ok(())
     }
 
     pub fn write(&self, w: File, start_ts: u64, end_ts: u64) -> Result<(), Error> {
@@ -83,18 +86,8 @@ impl Flamegraph {
             ..Default::default()
         };
 
-        let lines = self.get_lines();
         inferno::flamegraph::from_lines(&mut opts, lines.iter().map(|x| x.as_str()), w)
             .map_err(|e| format_err!("Failed to write flamegraph: {}", e))?;
-        Ok(())
-    }
-
-    pub fn write_raw(&self, w: &mut File) -> Result<(), Error> {
-        use std::io::Write;
-        for line in self.get_lines() {
-            w.write_all(line.as_bytes())?;
-            w.write_all(b"\n")?;
-        }
         Ok(())
     }
 
