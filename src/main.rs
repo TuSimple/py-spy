@@ -313,6 +313,8 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
         }
     }
 
+    progress.finish();
+
     // write out a message here (so as not to interfere with progress bar) if we ended earlier
     if !exit_message.is_empty() {
         println!("{}", exit_message);
