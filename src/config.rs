@@ -231,6 +231,7 @@ impl Config {
                 };
                 config.format = Some(value_t!(matches.value_of("format"), FileFormat).unwrap_or_else(|e| e.exit()));
                 config.filename = matches.value_of("output").map(|f| f.to_owned());
+                config.idlelist = matches.value_of("idlelist").map(|f| f.to_owned());
             },
             "top" => {
                 config.sampling_rate = value_t!(matches, "rate", u64)?;
