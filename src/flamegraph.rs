@@ -52,7 +52,7 @@ impl Flamegraph {
         Flamegraph { counts: HashMap::new(), show_linenumbers }
     }
 
-    pub fn increment(&mut self, time_stamp: u64, traces: &StackTrace) -> std::io::Result<()> {
+    pub fn increment(&mut self, time_stamp: u64, trace: &StackTrace) -> std::io::Result<()> {
         // convert the frame into a single ';' delimited String
         let frame = trace.frames.iter().rev().map(|frame| {
             let filename = match &frame.short_filename { Some(f) => &f, None => &frame.filename };

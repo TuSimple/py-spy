@@ -140,27 +140,15 @@ fn sample_console(process: &mut PythonSpy,
 }
 
 pub trait Recorder {
-<<<<<<< c4a6d558601382ea3f3661bfa676e79814f2b20c
-    fn increment(&mut self, trace: &StackTrace) -> Result<(), Error>;
-    fn write(&self, w: &mut std::fs::File) -> Result<(), Error>;
-}
-
-impl Recorder for speedscope::Stats {
-    fn increment(&mut self, trace: &StackTrace) -> Result<(), Error> {
-        Ok(self.record(trace)?)
-=======
-    fn increment(&mut self, time_stamp: u64, traces: &[StackTrace]) -> Result<(), Error>;
+    fn increment(&mut self, time_stamp: u64, trace: &StackTrace) -> Result<(), Error>;
     fn output_result(&self, filename: &String) -> Result<(), Error>;
 }
 
 impl Recorder for speedscope::Stats {
-    fn increment(&mut self, _time_stamp: u64, traces: &[StackTrace]) -> Result<(), Error> {
-        for trace in traces {
-            self.record(trace)?;
-        }
-        Ok(())
->>>>>>> Remove conflicts with previous features.
+    fn increment(&mut self, _time_stamp: u64, trace: &StackTrace) -> Result<(), Error> {
+        Ok(self.record(trace)?)
     }
+
     fn output_result(&self, filename: &String) -> Result<(), Error> {
         let mut out_file = std::fs::File::create(filename)?;
         self.write(&mut out_file)
@@ -168,31 +156,12 @@ impl Recorder for speedscope::Stats {
 }
 
 impl Recorder for flamegraph::Flamegraph {
-<<<<<<< c4a6d558601382ea3f3661bfa676e79814f2b20c
-    fn increment(&mut self, trace: &StackTrace) -> Result<(), Error> {
-        Ok(self.increment(trace)?)
-    }
-    fn write(&self, w: &mut std::fs::File) -> Result<(), Error> {
-        self.write(w)
-    }
-}
-
-pub struct RawFlamegraph(flamegraph::Flamegraph);
-
-impl Recorder for RawFlamegraph {
-    fn increment(&mut self, trace: &StackTrace) -> Result<(), Error> {
-        Ok(self.0.increment(trace)?)
+    fn increment(&mut self, time_stamp: u64, trace: &StackTrace) -> Result<(), Error> {
+        Ok(self.increment(time_stamp, trace)?)
     }
 
-    fn write(&self, w: &mut std::fs::File) -> Result<(), Error> {
-        self.0.write_raw(w)
-=======
-    fn increment(&mut self, time_stamp: u64, traces: &[StackTrace]) -> Result<(), Error> {
-        Ok(self.increment(time_stamp, traces)?)
-    } 
     fn output_result(&self, filename: &String) -> Result<(), Error> {
         Ok(self.output_raw_data(filename)?)
->>>>>>> Remove conflicts with previous features.
     }
 }
 
@@ -276,7 +245,7 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
                             module: None, short_filename: None, line: 0});
                     }
 
-                    output.increment(&trace)?;
+                    output.increment(time_stamp, &trace)?;
                 }
 
                 samples += 1;
@@ -320,15 +289,8 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
         println!("{}", exit_message);
     }
 
-<<<<<<< c4a6d558601382ea3f3661bfa676e79814f2b20c
-    {
-    let mut out_file = std::fs::File::create(filename)?;
-    output.write(&mut out_file)?;
-    }
-=======
     output.output_result(filename)?;
     println!("Wrote result into file '{}'. Samples: {} Errors: {}", filename, samples, errors);
->>>>>>> Remove conflicts with previous features.
 
     match config.format.as_ref().unwrap() {
         FileFormat::flamegraph => {
@@ -337,10 +299,6 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
         FileFormat::speedscope =>  {
             println!("Wrote speedscope file to '{}'. Samples: {} Errors: {}", filename, samples, errors);
             println!("Visit https://www.speedscope.app/ to view");
-        },
-        FileFormat::raw => {
-            println!("Wrote raw flamegraph data to '{}'. Samples: {} Errors: {}", filename, samples, errors);
-            println!("You can use the flamegraph.pl script from https://github.com/brendangregg/flamegraph to generate a SVG");
         }
     };
 
