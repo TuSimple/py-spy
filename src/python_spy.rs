@@ -205,7 +205,7 @@ impl PythonSpy {
             trace.owns_gil = trace.thread_id == gil_thread_id;
 
             trace.active = match os_thread_id.map(|id| thread_activity.get(&id)) {
-                Some(Some(active)) => *active,
+                Some(Some(active)) => *active && !self._heuristic_is_thread_idle(&trace),
                 _ => !self._heuristic_is_thread_idle(&trace)
             };
 
@@ -237,7 +237,7 @@ impl PythonSpy {
             // function/file to figure out if the thread is waiting (which seems to handle
             // most cases)
             let frame = &frames[0];
-            !check_idle(&frame.name, &frame.filename)
+            check_idle(&frame.name, &frame.filename)
         }
     }
 
