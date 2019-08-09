@@ -29,6 +29,8 @@ pub struct Config {
     #[doc(hidden)]
     pub format: Option<FileFormat>,
     #[doc(hidden)]
+    pub idlelist: Option<String>,
+    #[doc(hidden)]
     pub show_line_numbers: bool,
     #[doc(hidden)]
     pub duration: RecordDuration,
@@ -38,6 +40,12 @@ pub struct Config {
     pub include_thread_ids: bool,
     #[doc(hidden)]
     pub gil_only: bool,
+    #[doc(hidden)]
+    pub start_ts: u64,
+    #[doc(hidden)]
+    pub end_ts: u64,
+    #[doc(hidden)]
+    pub data_file: Option<String>,
 }
 
 arg_enum!{
@@ -45,7 +53,6 @@ arg_enum!{
     #[allow(non_camel_case_types)]
     pub enum FileFormat {
         flamegraph,
-        raw,
         speedscope
     }
 }
@@ -61,10 +68,11 @@ impl Default for Config {
     #[allow(dead_code)]
     fn default() -> Config {
         Config{pid: None, python_program: None, filename: None, format: None,
-               command: String::from("top"),
+               command: String::from("top"), idlelist: None,
                non_blocking: false, show_line_numbers: false, sampling_rate: 100,
                duration: RecordDuration::Unlimited, native: false,
-               gil_only: false, include_idle: false, include_thread_ids: false}
+               gil_only: false, include_idle: false, include_thread_ids: false,
+               start_ts: 0, end_ts: 0, data_file: None}
     }
 }
 
@@ -77,7 +85,7 @@ impl Config {
 
     pub fn from_args(args: &[String]) -> clap::Result<Config> {
         // we don't yet support native tracing on 32 bit linux
-        let allow_native = cfg!(unwind);
+        let allow_native = !cfg!(all(target_os="linux", target_pointer_width="32"));
 
         // pid/native/nonblocking/rate/pythonprogram arguments can be
         // used across various subcommand - define once here
@@ -107,6 +115,12 @@ impl Config {
         let program = Arg::with_name("python_program")
                     .help("commandline of a python program to run")
                     .multiple(true);
+        let idlelist = Arg::with_name("idlelist")
+                    .short("i")
+                    .long("idle")
+                    .value_name("idlelist")
+                    .help("A list of functions representing the current thread is idle.")
+                    .takes_value(true);
 
         let matches = App::new(crate_name!())
             .version(crate_version!())
@@ -116,7 +130,7 @@ impl Config {
             .global_setting(clap::AppSettings::DeriveDisplayOrder)
             .global_setting(clap::AppSettings::UnifiedHelpMessage)
             .subcommand(clap::SubCommand::with_name("record")
-                .about("Records stack trace information to a flamegraph, speedscope or raw file")
+                .about("Records raw stack trace information to file")
                 .arg(program.clone())
                 .arg(pid.clone())
                 .arg(Arg::with_name("output")
@@ -161,6 +175,7 @@ impl Config {
                     .help("Include stack traces for idle threads"))
                 .arg(native.clone())
                 .arg(nonblocking.clone())
+                .arg(idlelist.clone())
             )
             .subcommand(clap::SubCommand::with_name("top")
                 .about("Displays a top like view of functions consuming CPU")
@@ -175,6 +190,29 @@ impl Config {
                 .arg(pid.clone().required(true))
                 .arg(native.clone())
                 .arg(nonblocking.clone())
+            )
+            .subcommand(clap::SubCommand::with_name("display")
+                .about("Shows the result in flamegraph or speedscope")
+                .arg(Arg::with_name("flame")
+                    .short("g")
+                    .long("flame")
+                    .value_name("flame")
+                    .help("Generate a flame graph from source file")
+                    .takes_value(true))
+                .arg(Arg::with_name("start_timestamp")
+                    .short("s")
+                    .long("startts")
+                    .value_name("start_timestamp")
+                    .help("The value of starting timestamp for generating flame graph")
+                    .default_value("0")
+                    .takes_value(true))
+                .arg(Arg::with_name("end_timestamp")
+                    .short("e")
+                    .long("endts")
+                    .value_name("end_timestamp")
+                    .help("The value of ending timestamp for generating flame graph")
+                    .default_value("2")
+                    .takes_value(true))
             )
             .get_matches_from_safe(args)?;
         info!("Command line args: {:?}", matches);
@@ -193,9 +231,15 @@ impl Config {
                 };
                 config.format = Some(value_t!(matches.value_of("format"), FileFormat).unwrap_or_else(|e| e.exit()));
                 config.filename = matches.value_of("output").map(|f| f.to_owned());
+                config.idlelist = matches.value_of("idlelist").map(|f| f.to_owned());
             },
             "top" => {
                 config.sampling_rate = value_t!(matches, "rate", u64)?;
+            },
+            "display" => {
+                config.start_ts = value_t!(matches, "start_timestamp", u64)?;
+                config.end_ts = value_t!(matches, "end_timestamp", u64)?;
+                config.data_file = matches.value_of("flame").map(|f| f.to_owned());
             }
             _ => {}
         }

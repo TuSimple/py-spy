@@ -53,6 +53,7 @@ mod binary_parser;
 mod cython;
 #[cfg(unwind)]
 mod native_stack_trace;
+mod idle_list;
 mod python_bindings;
 mod python_interpreters;
 mod python_spy;
@@ -65,4 +66,5 @@ pub use config::Config;
 pub use stack_trace::StackTrace;
 pub use stack_trace::Frame;
 pub use remoteprocess::Pid;
+pub use idle_list::{load_idle_list, check_idle};
 

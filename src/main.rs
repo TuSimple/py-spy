@@ -18,6 +18,7 @@ extern crate lru;
 extern crate memmap;
 extern crate proc_maps;
 extern crate regex;
+extern crate serde;
 extern crate tempfile;
 #[cfg(unix)]
 extern crate termios;
@@ -25,7 +26,6 @@ extern crate termios;
 extern crate winapi;
 extern crate cpp_demangle;
 extern crate rand;
-extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
@@ -38,6 +38,7 @@ mod binary_parser;
 mod cython;
 #[cfg(unwind)]
 mod native_stack_trace;
+mod idle_list;
 mod python_bindings;
 mod python_interpreters;
 mod python_spy;
@@ -49,13 +50,18 @@ mod timer;
 mod utils;
 mod version;
 
+#[cfg(feature = "validation")]
+mod old_flame;
+
 use std::io::Read;
+use std::fs::File;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
 use failure::Error;
 
+use idle_list::load_idle_list;
 use python_spy::PythonSpy;
 use stack_trace::{StackTrace, Frame};
 use console_viewer::ConsoleViewer;
@@ -104,6 +110,8 @@ fn sample_console(process: &mut PythonSpy,
                   display: &str,
                   config: &Config) -> Result<(), Error> {
     let rate = config.sampling_rate;
+
+    // Console related
     let mut console = ConsoleViewer::new(config.show_line_numbers, display,
                                          &format!("{}", process.version),
                                          1.0 / rate as f64)?;
@@ -132,37 +140,28 @@ fn sample_console(process: &mut PythonSpy,
 }
 
 pub trait Recorder {
-    fn increment(&mut self, trace: &StackTrace) -> Result<(), Error>;
-    fn write(&self, w: &mut std::fs::File) -> Result<(), Error>;
+    fn increment(&mut self, time_stamp: u64, trace: &StackTrace) -> Result<(), Error>;
+    fn output_result(&self, filename: &String) -> Result<(), Error>;
 }
 
 impl Recorder for speedscope::Stats {
-    fn increment(&mut self, trace: &StackTrace) -> Result<(), Error> {
+    fn increment(&mut self, _time_stamp: u64, trace: &StackTrace) -> Result<(), Error> {
         Ok(self.record(trace)?)
     }
-    fn write(&self, w: &mut std::fs::File) -> Result<(), Error> {
-        self.write(w)
+
+    fn output_result(&self, filename: &String) -> Result<(), Error> {
+        let mut out_file = std::fs::File::create(filename)?;
+        self.write(&mut out_file)
     }
 }
 
 impl Recorder for flamegraph::Flamegraph {
-    fn increment(&mut self, trace: &StackTrace) -> Result<(), Error> {
-        Ok(self.increment(trace)?)
-    }
-    fn write(&self, w: &mut std::fs::File) -> Result<(), Error> {
-        self.write(w)
-    }
-}
-
-pub struct RawFlamegraph(flamegraph::Flamegraph);
-
-impl Recorder for RawFlamegraph {
-    fn increment(&mut self, trace: &StackTrace) -> Result<(), Error> {
-        Ok(self.0.increment(trace)?)
+    fn increment(&mut self, time_stamp: u64, trace: &StackTrace) -> Result<(), Error> {
+        Ok(self.increment(time_stamp, trace)?)
     }
 
-    fn write(&self, w: &mut std::fs::File) -> Result<(), Error> {
-        self.0.write_raw(w)
+    fn output_result(&self, filename: &String) -> Result<(), Error> {
+        Ok(self.output_raw_data(filename)?)
     }
 }
 
@@ -170,7 +169,6 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
     let mut output: Box<dyn Recorder> = match config.format {
         Some(FileFormat::flamegraph) => Box::new(flamegraph::Flamegraph::new(config.show_line_numbers)),
         Some(FileFormat::speedscope) =>  Box::new(speedscope::Stats::new()),
-        Some(FileFormat::raw) => Box::new(RawFlamegraph(flamegraph::Flamegraph::new(config.show_line_numbers))),
         None => return Err(format_err!("A file format is required to record samples"))
     };
 
@@ -198,15 +196,20 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
 
     let mut errors = 0;
     let mut samples = 0;
-    println!();
+    let mut exit_message = "";
+    let mut time_stamp: u64 = 0;
+    let mut sample_counter: u64 = 0;
 
+    // If the feature "validation" is enabled, define the flame graph from original implementation
+    #[cfg(feature = "validation")]
+    let mut flame_old = old_flame::OldFlamegraph::new(config.show_line_numbers);
+
+    // Ctrl-C handler
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
     ctrlc::set_handler(move || {
         r.store(false, Ordering::SeqCst);
     })?;
-
-    let mut exit_message = "";
 
     for sleep in timer::Timer::new(config.sampling_rate as f64) {
         if let Err(delay) = sleep {
@@ -217,12 +220,14 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
                 term.move_cursor_down(1)?;
             }
         }
-
+        
+        // Stop sampling when receiving Ctrl-C
         if !running.load(Ordering::SeqCst) {
             exit_message = "Stopped sampling because Control-C pressed";
             break;
         }
 
+        // Process stack traces
         match process.get_stack_traces() {
             Ok(traces) => {
                 for mut trace in traces {
@@ -240,7 +245,7 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
                             module: None, short_filename: None, line: 0});
                     }
 
-                    output.increment(&trace)?;
+                    output.increment(time_stamp, &trace)?;
                 }
 
                 samples += 1;
@@ -252,10 +257,11 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
             },
             Err(_) => {
                 if process_exitted(&process.process) {
+                    println!("\nprocess {} ended", process.pid);
                     exit_message = "Stopped sampling because the process ended";
                     break;
                 } else {
-                    errors += 1;
+                    errors += 1; 
                 }
             }
         }
@@ -269,18 +275,22 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
         }
 
         progress.inc(1);
+        sample_counter += 1;
+        if sample_counter == config.sampling_rate {
+            sample_counter = 0;
+            time_stamp += 1;
+        }
     }
+
     progress.finish();
+
     // write out a message here (so as not to interfere with progress bar) if we ended earlier
     if !exit_message.is_empty() {
         println!("{}", exit_message);
     }
 
-    {
-    let mut out_file = std::fs::File::create(filename)?;
-    output.write(&mut out_file)?;
-
-    }
+    output.output_result(filename)?;
+    println!("Wrote result into file '{}'. Samples: {} Errors: {}", filename, samples, errors);
 
     match config.format.as_ref().unwrap() {
         FileFormat::flamegraph => {
@@ -289,10 +299,6 @@ fn record_samples(process: &mut PythonSpy, config: &Config) -> Result<(), Error>
         FileFormat::speedscope =>  {
             println!("Wrote speedscope file to '{}'. Samples: {} Errors: {}", filename, samples, errors);
             println!("Visit https://www.speedscope.app/ to view");
-        },
-        FileFormat::raw => {
-            println!("Wrote raw flamegraph data to '{}'. Samples: {} Errors: {}", filename, samples, errors);
-            println!("You can use the flamegraph.pl script from https://github.com/brendangregg/flamegraph to generate a SVG");
         }
     };
 
@@ -341,7 +347,24 @@ fn pyspy_main() -> Result<(), Error> {
         }
     }
 
-    if let Some(pid) = config.pid {
+    load_idle_list(&config.idlelist);
+
+    if let Some(ref filename) = config.data_file {
+        println!("Try to open the file {}", filename);
+        let mut input_file = File::open(&filename)?;
+        let mut content_string = String::new();
+        input_file.read_to_string(&mut content_string)?;
+        let content: flamegraph::Flamegraph = serde_json::from_str(&content_string).unwrap();
+        println!("The raw data contains {} different stack traces.", content.counts.len());
+        let mut flame_name = String::new();
+        flame_name.push_str(filename);
+        flame_name.push_str(".svg");
+        println!("Generate flame graph to the file '{}' from '{}'. Starting at {}, Ending at {}", flame_name, filename, config.start_ts, config.end_ts);
+        let target = File::create(flame_name)?;
+        content.write(target, config.start_ts, config.end_ts)?;
+    }
+
+    else if let Some(pid) = config.pid {
         let mut process = PythonSpy::retry_new(pid, &config, 3)?;
         run_spy_command(&mut process, &config)?;
     }

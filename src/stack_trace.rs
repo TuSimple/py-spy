@@ -1,5 +1,3 @@
-use std;
-
 use failure::{Error, ResultExt};
 use remoteprocess::ProcessMemory;
 
@@ -54,7 +52,7 @@ pub fn get_stack_traces<I, P>(interpreter: &I, process: &P) -> Result<(Vec<Stack
 }
 
 /// Gets a stack trace for an individual thread
-pub fn get_stack_trace<T, P >(thread: &T, process: &P) -> Result<StackTrace, Error>
+pub fn get_stack_trace<T, P>(thread: &T, process: &P) -> Result<StackTrace, Error>
         where T: ThreadState, P: ProcessMemory {
     // TODO: just return frames here? everything else probably should be returned out of scopee
     let mut frames = Vec::new();

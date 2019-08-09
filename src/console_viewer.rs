@@ -1,4 +1,3 @@
-use std;
 use std::collections::HashMap;
 use std::vec::Vec;
 use std::io;
@@ -148,7 +147,7 @@ impl ConsoleViewer {
                  style(error_rate * 100.0).bold().red(),
                  style(error_string).bold());
         } else {
-             out!("Total Samples {}", style(self.stats.overall_samples).bold());
+             out!("Total Samples: {}", style(self.stats.overall_samples).bold());
         }
 
         out!("GIL: {:.2}%, Active: {:>.2}%, Threads: {}",
